@@ -251,35 +251,33 @@
 
     const W = wrap.clientWidth, H = wrap.clientHeight;
     T.scene = new THREE.Scene();
-    T.scene.background = new THREE.Color(0x0d1b2e);
-    T.scene.fog = new THREE.FogExp2(0x0d1b2e, 0.007);
+    // ── Bright construction-game sky ──
+    T.scene.background = new THREE.Color(0x87ceeb);
+    T.scene.fog = new THREE.Fog(0x87ceeb, 180, 380);
 
-    T.camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 1000);
+    T.camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 1000);
     T.renderer = new THREE.WebGLRenderer({ antialias: true });
     T.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     T.renderer.setSize(W, H);
-    T.renderer.shadowMap.enabled = true;
-    T.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    T.renderer.shadowMap.enabled = false; // flat lighting — no shadows
     T.mount.appendChild(T.renderer.domElement);
 
-    // Lighting rig
-    T.scene.add(new THREE.AmbientLight(0x8aa8cc, 0.65));
-    const sun = new THREE.DirectionalLight(0xfff8e8, 1.1);
-    sun.position.set(50, 80, 40); sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { near:.5, far:300, left:-120, right:120, top:120, bottom:-120 });
+    // ── Bright daylight rig ──
+    T.scene.add(new THREE.AmbientLight(0xffffff, 1.05));
+    const sun = new THREE.DirectionalLight(0xfffde8, 0.9);
+    sun.position.set(60, 100, 50);
     T.scene.add(sun);
-    const rim = new THREE.DirectionalLight(0x3366cc, 0.25);
-    rim.position.set(-30, 20, -25); T.scene.add(rim);
+    const fill = new THREE.DirectionalLight(0xddeeff, 0.4);
+    fill.position.set(-40, 30, -30); T.scene.add(fill);
 
-    // Permanent floor + grid
-    const floorMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(500, 500),
-      new THREE.MeshLambertMaterial({ color: 0x0a1525 })
+    // ── Ground: grass outside + concrete grid ──
+    const grassMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(600, 600),
+      new THREE.MeshLambertMaterial({ color: 0x7ec850 })
     );
-    floorMesh.rotation.x = -Math.PI/2; floorMesh.receiveShadow = true; floorMesh.position.y = -0.02;
-    T.scene.add(floorMesh);
-    T.scene.add(new THREE.GridHelper(500, 100, 0x162236, 0x111e2e));
+    grassMesh.rotation.x = -Math.PI/2; grassMesh.position.y = -0.04;
+    T.scene.add(grassMesh);
+    T.scene.add(new THREE.GridHelper(600, 120, 0x5aab3a, 0x6abf48));
 
     // Mouse orbit
     const el = T.renderer.domElement;
@@ -314,26 +312,26 @@
     // Controls hint
     const hint = document.createElement('div');
     hint.className = 'eng-hint';
+    hint.style.cssText = 'position:absolute;bottom:36px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.75);color:#334155;border:1px solid rgba(0,0,0,.12);border-radius:20px;padding:4px 14px;font-size:10px;white-space:nowrap;pointer-events:none;';
     hint.textContent = '⟳ Left-drag: orbit  ·  Right-drag: pan  ·  Scroll: zoom  ·  Dbl-click: reset';
     T.mount.appendChild(hint);
     el.addEventListener('dblclick', () => { resetThreeCamera(); });
 
-    // HUD overlay
+    // HUD overlay — light card style
     T.hud = document.createElement('div');
-    T.hud.className = 'eng-hud';
+    T.hud.style.cssText = 'position:absolute;top:10px;right:12px;background:rgba(255,255,255,.88);color:#1e293b;border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:10px 14px;font:12px/1.6 Segoe UI,Arial,sans-serif;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.15);min-width:170px;';
     T.mount.appendChild(T.hud);
 
-    // Reset button
+    // Reset button — light style
     const resetBtn = document.createElement('button');
-    resetBtn.className = 'eng-btn';
-    resetBtn.style.cssText += 'top:10px;left:12px;';
+    resetBtn.style.cssText = 'position:absolute;top:10px;left:12px;background:rgba(255,255,255,.88);color:#1e293b;border:1px solid rgba(0,0,0,.2);border-radius:6px;padding:5px 12px;font:11px Segoe UI,Arial,sans-serif;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);';
     resetBtn.innerHTML = '⟲ &nbsp;Reset View';
     resetBtn.addEventListener('click', () => resetThreeCamera());
     T.mount.appendChild(resetBtn);
 
-    // Engineering status bar at bottom
+    // Status bar — light style
     T.statusBar = document.createElement('div');
-    T.statusBar.className = 'eng-statusbar';
+    T.statusBar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:24px;background:rgba(255,255,255,.82);border-top:1px solid rgba(0,0,0,.1);display:flex;align-items:center;gap:18px;padding:0 14px;font:10px Segoe UI,Arial,sans-serif;color:#475569;';
     T.mount.appendChild(T.statusBar);
 
     // Render loop
@@ -385,46 +383,51 @@
     if (T.hud) {
       const totalVol = its.reduce((s, it) => { const {dW,dH}=dd(it); return s+dW*dH*sh(it); }, 0);
       T.hud.innerHTML =
-        `<b>📦 ${n} item${n!==1?'s':''} placed</b><br>` +
-        `<span class="dim">Floor: ${ly.totalW.toFixed(1)} × ${ly.totalH.toFixed(1)} m</span><br>` +
-        `<span class="dim">Corridor: ${(ly.corrR-ly.corrL).toFixed(1)} m wide</span><br>` +
-        `<span class="dim">Volume: ${totalVol.toFixed(1)} m³</span>`;
+        `<b style="font-size:13px;">📦 ${n} item${n!==1?'s':''} placed</b><br>` +
+        `<span style="color:#64748b;">Floor: ${ly.totalW.toFixed(1)} × ${ly.totalH.toFixed(1)} m</span><br>` +
+        `<span style="color:#64748b;">Corridor: ${(ly.corrR-ly.corrL).toFixed(1)} m wide</span><br>` +
+        `<span style="color:#64748b;">Volume: ${totalVol.toFixed(1)} m³</span>`;
     }
     if (T.statusBar) {
       T.statusBar.innerHTML =
-        `<span><span class="dot"></span> 3D View</span>` +
-        `<span>W: ${ly.totalW.toFixed(2)} m</span>` +
-        `<span>D: ${ly.totalH.toFixed(2)} m</span>` +
+        `<span style="display:flex;align-items:center;gap:5px;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;"></span> 3D View</span>` +
+        `<span>W: ${ly.totalW.toFixed(1)} m</span>` +
+        `<span>D: ${ly.totalH.toFixed(1)} m</span>` +
         `<span>Items: ${n}</span>` +
-        `<span style="margin-left:auto;color:#2a5080">OMEGA Warehouse Planner</span>`;
+        `<span style="margin-left:auto;color:#94a3b8;">OMEGA Warehouse Planner</span>`;
     }
 
     const pos = window.pos || {};
     const W   = ly.totalW;
     const H   = ly.totalH;
 
-    // Warehouse slab
+    // ── Warehouse concrete slab ──────────────────────────────
     const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(W, 0.15, H),
-      new THREE.MeshLambertMaterial({ color: 0x14253a })
+      new THREE.BoxGeometry(W, 0.18, H),
+      new THREE.MeshLambertMaterial({ color: 0xd4cfc0 }) // warm concrete
     );
-    slab.position.set(W/2, -0.075, H/2); slab.receiveShadow = true;
+    slab.position.set(W/2, -0.09, H/2);
     add3(slab);
 
-    // Floor markings (5m grid lines on slab)
-    const lineMat = new THREE.MeshLambertMaterial({ color: 0x1c3354, transparent:true, opacity:.55 });
-    for (let xi=0; xi<=Math.ceil(W); xi+=5) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(.04,.01,H),lineMat);
+    // Concrete grid lines on slab (1m minor, 5m major)
+    const minorLineMat = new THREE.MeshLambertMaterial({ color: 0xbab5a6, transparent:true, opacity:.6 });
+    const majorLineMat = new THREE.MeshLambertMaterial({ color: 0x9c9789, transparent:true, opacity:.9 });
+    for (let xi=0; xi<=Math.ceil(W); xi++) {
+      const isMaj = xi%5===0;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(isMaj?.06:.025,.01,H), isMaj?majorLineMat:minorLineMat);
       m.position.set(xi,.002,H/2); add3(m);
     }
-    for (let zi=0; zi<=Math.ceil(H); zi+=5) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(W,.01,.04),lineMat);
+    for (let zi=0; zi<=Math.ceil(H); zi++) {
+      const isMaj = zi%5===0;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(W,.01,isMaj?.06:.025), isMaj?majorLineMat:minorLineMat);
       m.position.set(W/2,.002,zi); add3(m);
     }
 
-    // Walls (translucent panels)
-    const wallMat = new THREE.MeshLambertMaterial({ color:0x2a4878, transparent:true, opacity:.18, side:THREE.DoubleSide });
-    const wH = 9, wT = .18;
+    // ── Walls — clean white steel panels ─────────────────────
+    const wallMat = new THREE.MeshLambertMaterial({ color:0xf0ede8, transparent:true, opacity:.35, side:THREE.DoubleSide });
+    const wallEdgeMat = new THREE.MeshLambertMaterial({ color:0x708090 });
+    const wH = 9, wT = .22;
+    // Main translucent panels
     [[W/2,wH/2,  0,    W+wT,wH,wT],
      [W/2,wH/2,  H,    W+wT,wH,wT],
      [0,  wH/2,  H/2,  wT,  wH, H],
@@ -432,25 +435,53 @@
       const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), wallMat);
       m.position.set(x,y,z); add3(m);
     });
+    // Corner columns
+    [[0,wH/2,0],[W,wH/2,0],[0,wH/2,H],[W,wH/2,H]].forEach(([x,y,z])=>{
+      const col = new THREE.Mesh(new THREE.BoxGeometry(.4,wH,.4), wallEdgeMat);
+      col.position.set(x,y,z); add3(col);
+    });
 
-    // Roof trusses
-    const trussMat = new THREE.MeshLambertMaterial({ color:0x1e3a5f, transparent:true, opacity:.4 });
-    for (let tz=0; tz<=Math.ceil(H); tz += Math.max(4, H/Math.round(H/5))) {
-      const t = new THREE.Mesh(new THREE.BoxGeometry(W, .14, .14), trussMat);
-      t.position.set(W/2, wH+.07, tz); add3(t);
+    // ── Roof trusses — steel blue-grey ───────────────────────
+    const trussMat = new THREE.MeshLambertMaterial({ color:0x708090 });
+    const step = Math.max(4, H/Math.round(H/5));
+    for (let tz=0; tz<=Math.ceil(H); tz += step) {
+      const t = new THREE.Mesh(new THREE.BoxGeometry(W, .18, .18), trussMat);
+      t.position.set(W/2, wH+.09, tz); add3(t);
     }
+    // Ridge beam
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(.22, .22, H), trussMat);
+    ridge.position.set(W/2, wH+.28, H/2); add3(ridge);
 
-    // Corridor stripe
+    // ── Corridor — bright construction yellow stripes ─────────
     const cW = ly.corrR - ly.corrL;
-    const corrMat = new THREE.MeshLambertMaterial({ color:0xfbbf24, transparent:true, opacity:.14 });
-    const corrMesh = new THREE.Mesh(new THREE.BoxGeometry(cW,.03,H),corrMat);
+    const corrMat = new THREE.MeshLambertMaterial({ color:0xfbbf24, transparent:true, opacity:.55 });
+    const corrMesh = new THREE.Mesh(new THREE.BoxGeometry(cW,.025,H),corrMat);
     corrMesh.position.set(ly.corrL+cW/2,.015,H/2); add3(corrMesh);
 
-    // Corridor centre dashes
-    const dashMat = new THREE.MeshLambertMaterial({ color:0xfbbf24, transparent:true, opacity:.55 });
-    for (let dz=.4; dz<H; dz+=1.8) {
-      const d = new THREE.Mesh(new THREE.BoxGeometry(.12,.02,.9),dashMat);
-      d.position.set(ly.corrL+cW/2,.025,dz); add3(d);
+    // Hazard stripes (alternating solid/gap black)
+    const hazMat = new THREE.MeshLambertMaterial({ color:0x1a1a1a, transparent:true, opacity:.45 });
+    for (let dz=0; dz<H; dz+=1.4) {
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(cW,.028,.55), hazMat);
+      stripe.position.set(ly.corrL+cW/2,.018,dz+.25); add3(stripe);
+    }
+
+    // ── Scale ruler posts along south edge (Z=0) ─────────────
+    // Alternating red/white posts every 5m like a real measuring pole
+    for (let xi=0; xi<=Math.ceil(W); xi+=5) {
+      const is10 = xi%10===0;
+      const postMat = new THREE.MeshLambertMaterial({ color: is10 ? 0xff3322 : 0xffffff });
+      const post = new THREE.Mesh(new THREE.BoxGeometry(.14,is10?1.4:1.0,.14), postMat);
+      post.position.set(xi, (is10?1.4:1.0)/2, -0.8); add3(post);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(.22,.1,.22),
+        new THREE.MeshLambertMaterial({ color:0x333333 }));
+      cap.position.set(xi, is10?1.42:1.02, -0.8); add3(cap);
+    }
+    // Scale ruler along west edge (X=0)
+    for (let zi=0; zi<=Math.ceil(H); zi+=5) {
+      const is10 = zi%10===0;
+      const postMat = new THREE.MeshLambertMaterial({ color: is10 ? 0xff3322 : 0xffffff });
+      const post = new THREE.Mesh(new THREE.BoxGeometry(.14,is10?1.4:1.0,.14), postMat);
+      post.position.set(-0.8, (is10?1.4:1.0)/2, zi); add3(post);
     }
 
     // ── ITEMS ───────────────────────────────────────────────────
@@ -479,8 +510,8 @@
         // Darker on higher layers → stack depth visible
         const shade = Math.max(0.42, 1 - layer * 0.11);
         const col   = cssToHex(shadeColor(cssColor, shade));
-        const mat   = new THREE.MeshLambertMaterial({ color: isSel ? 0xfbbf24 : col, transparent:true, opacity: .94 });
-        const eMat  = new THREE.LineBasicMaterial({ color: isSel ? 0xffdd44 : 0xffffff, transparent:true, opacity: isSel ? .6 : .25 });
+        const mat   = new THREE.MeshLambertMaterial({ color: isSel ? 0xffd700 : col });
+        const eMat  = new THREE.LineBasicMaterial({ color: isSel ? 0xffee00 : 0x000000, transparent:true, opacity: isSel ? .8 : .18 });
 
         for (let row = 0; row < rows; row++) {
           for (let col2 = 0; col2 < cols; col2++) {
@@ -492,7 +523,6 @@
 
             const mesh = new THREE.Mesh(bundleGeo, mat);
             mesh.position.set(bx, by, bz);
-            mesh.castShadow = mesh.receiveShadow = true;
             add3(mesh);
 
             const wire = new THREE.LineSegments(edgeGeo, eMat);
@@ -524,29 +554,35 @@
       add3(plate);
     });
 
-    // ── Engineering dimension lines ──────────────────────────
-    const dimMat = new THREE.LineBasicMaterial({ color: 0x4488cc, transparent:true, opacity:.7 });
+    // ── Engineering dimension arrows ─────────────────────────
+    const dimMat = new THREE.LineBasicMaterial({ color: 0x1e40af }); // navy blue visible on concrete
     const mkLine = (pts) => {
       const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(...p)));
       add3(new THREE.Line(g, dimMat));
     };
-    const DY = .5;
-    mkLine([[0,DY,-1],[W,DY,-1]]);
-    mkLine([[0,DY,-1.4],[0,DY,-.4]]);
-    mkLine([[W,DY,-1.4],[W,DY,-.4]]);
-    mkLine([[W+1,DY,0],[W+1,DY,H]]);
-    mkLine([[W+.6,DY,0],[W+1.4,DY,0]]);
-    mkLine([[W+.6,DY,H],[W+1.4,DY,H]]);
+    const DY = .8;
+    mkLine([[0,DY,-1.4],[W,DY,-1.4]]);
+    mkLine([[0,DY,-1.8],[0,DY,-.8]]);
+    mkLine([[W,DY,-1.8],[W,DY,-.8]]);
+    mkLine([[W+1.2,DY,0],[W+1.2,DY,H]]);
+    mkLine([[W+.7,DY,0],[W+1.7,DY,0]]);
+    mkLine([[W+.7,DY,H],[W+1.7,DY,H]]);
 
-    // Small axis cross at origin
-    const axR = new THREE.LineBasicMaterial({ color:0xff4444, transparent:true, opacity:.8 });
-    const axG = new THREE.LineBasicMaterial({ color:0x44ff88, transparent:true, opacity:.8 });
-    const axB = new THREE.LineBasicMaterial({ color:0x4488ff, transparent:true, opacity:.8 });
-    const axL = Math.max(W, H) * .06;
-    [[axR,[0,0,0],[axL,0,0]],[axG,[0,0,0],[0,axL,0]],[axB,[0,0,0],[0,0,axL]]].forEach(([m,a,b])=>{
+    // ── Bold axis cross at origin ─────────────────────────────
+    const axL = Math.max(W, H) * .07;
+    const mkAxis = (color, a, b) => {
       const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a),new THREE.Vector3(...b)]);
-      add3(new THREE.Line(g, m));
-    });
+      add3(new THREE.Line(g, new THREE.LineBasicMaterial({ color })));
+      // Capped cylinder for visibility
+      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,axL,8), new THREE.MeshLambertMaterial({ color }));
+      cyl.position.set(...b.map((v,i)=>v/2)); // midpoint
+      if (color===0xff2222) cyl.rotation.z = Math.PI/2;
+      if (color===0x2244ff) cyl.rotation.x = Math.PI/2;
+      add3(cyl);
+    };
+    mkAxis(0xff2222, [0,0.1,0], [axL,0.1,0]);  // X — red
+    mkAxis(0x22cc44, [0,0.1,0], [0,axL+0.1,0]); // Y — green
+    mkAxis(0x2244ff, [0,0.1,0], [0,0.1,axL]);  // Z — blue
 
     // Reset camera for this layout
     resetThreeCamera();
