@@ -4,6 +4,7 @@
  * • Konva.js   → 2D Layout  (OOP canvas, drag/hover, smart events)
  * • Three.js   → 3D View    (WebGL, real perspective, orbit camera)
  * • PixiJS     → Footprint  (GPU-accelerated treemap)
+ * • Chart.js   → Bundle & S/N + Report  (modern dashboard cards)
  */
 
 (function () {
@@ -53,12 +54,21 @@
   function allItems() {
     const ly  = window.layout;
     const its = window.items;
-    if (!ly || !its || !its.length) return [];
+    if (!its || !its.length) return [];
+    if (!ly) {
+      // No layout yet — return all items that have positions
+      const pos = window.pos;
+      if (pos) return its.filter(it => pos[it.id]);
+      return [];
+    }
     const lSet = ly.leftItems  instanceof Set ? ly.leftItems  : new Set(ly.leftItems  || []);
     const rSet = ly.rightItems instanceof Set ? ly.rightItems : new Set(ly.rightItems || []);
     const all  = lSet.size + rSet.size;
-    if (all === 0) return []; // sets are empty
-    return its.filter(it => lSet.has(it.id) || rSet.has(it.id));
+    if (all > 0) return its.filter(it => lSet.has(it.id) || rSet.has(it.id));
+    // Sets are empty — fall back to position map
+    const pos = window.pos;
+    if (pos && Object.keys(pos).length > 0) return its.filter(it => pos[it.id]);
+    return its; // last resort: return everything
   }
 
   // True if a layout has been applied and items are placed
@@ -403,8 +413,14 @@
 
     // Floor markings (5m grid lines on slab)
     const lineMat = new THREE.MeshLambertMaterial({ color: 0x1c3354, transparent:true, opacity:.55 });
-    for (let xi=0; xi<=Math.ceil(W); xi+=5) add3(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(.04,.01,H),lineMat),{position:new THREE.Vector3(xi,.002,H/2)}));
-    for (let zi=0; zi<=Math.ceil(H); zi+=5) add3(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(W,.01,.04),lineMat),{position:new THREE.Vector3(W/2,.002,zi)}));
+    for (let xi=0; xi<=Math.ceil(W); xi+=5) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(.04,.01,H),lineMat);
+      m.position.set(xi,.002,H/2); add3(m);
+    }
+    for (let zi=0; zi<=Math.ceil(H); zi+=5) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(W,.01,.04),lineMat);
+      m.position.set(W/2,.002,zi); add3(m);
+    }
 
     // Walls (translucent panels)
     const wallMat = new THREE.MeshLambertMaterial({ color:0x2a4878, transparent:true, opacity:.18, side:THREE.DoubleSide });
@@ -427,7 +443,8 @@
     // Corridor stripe
     const cW = ly.corrR - ly.corrL;
     const corrMat = new THREE.MeshLambertMaterial({ color:0xfbbf24, transparent:true, opacity:.14 });
-    add3(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(cW,.03,H),corrMat),{position:new THREE.Vector3(ly.corrL+cW/2,.015,H/2)}));
+    const corrMesh = new THREE.Mesh(new THREE.BoxGeometry(cW,.03,H),corrMat);
+    corrMesh.position.set(ly.corrL+cW/2,.015,H/2); add3(corrMesh);
 
     // Corridor centre dashes
     const dashMat = new THREE.MeshLambertMaterial({ color:0xfbbf24, transparent:true, opacity:.55 });
@@ -497,7 +514,7 @@
         add3(cap);
       }
 
-      // Floating item label (thin dark plate + text sprite)
+      // Floating item label (thin dark plate)
       const totalH_ = effStack * it.H + .12;
       const plate = new THREE.Mesh(
         new THREE.BoxGeometry(Math.min(dW*.88,2.4), .06, Math.min(dH*.7, .55)),
@@ -508,25 +525,27 @@
     });
 
     // ── Engineering dimension lines ──────────────────────────
-    // Width arrow along front edge (Z=0)
     const dimMat = new THREE.LineBasicMaterial({ color: 0x4488cc, transparent:true, opacity:.7 });
-    const mkLine = (pts) => { const g=new THREE.BufferGeometry().setFromPoints(pts.map(p=>new THREE.Vector3(...p))); add3(new THREE.Line(g,dimMat)); };
-    const DY = .5; // height above floor for dim lines
-    mkLine([[0,DY,-1],[W,DY,-1]]);         // width line
-    mkLine([[0,DY,-1.4],[0,DY,-.4]]);      // left tick
-    mkLine([[W,DY,-1.4],[W,DY,-.4]]);      // right tick
-    mkLine([[W+1,DY,0],[W+1,DY,H]]);        // depth line
-    mkLine([[W+.6,DY,0],[W+1.4,DY,0]]);    // top tick
-    mkLine([[W+.6,DY,H],[W+1.4,DY,H]]);    // bottom tick
+    const mkLine = (pts) => {
+      const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(...p)));
+      add3(new THREE.Line(g, dimMat));
+    };
+    const DY = .5;
+    mkLine([[0,DY,-1],[W,DY,-1]]);
+    mkLine([[0,DY,-1.4],[0,DY,-.4]]);
+    mkLine([[W,DY,-1.4],[W,DY,-.4]]);
+    mkLine([[W+1,DY,0],[W+1,DY,H]]);
+    mkLine([[W+.6,DY,0],[W+1.4,DY,0]]);
+    mkLine([[W+.6,DY,H],[W+1.4,DY,H]]);
 
-    // Small axis cross at origin (0,0,0)
+    // Small axis cross at origin
     const axR = new THREE.LineBasicMaterial({ color:0xff4444, transparent:true, opacity:.8 });
     const axG = new THREE.LineBasicMaterial({ color:0x44ff88, transparent:true, opacity:.8 });
     const axB = new THREE.LineBasicMaterial({ color:0x4488ff, transparent:true, opacity:.8 });
     const axL = Math.max(W, H) * .06;
     [[axR,[0,0,0],[axL,0,0]],[axG,[0,0,0],[0,axL,0]],[axB,[0,0,0],[0,0,axL]]].forEach(([m,a,b])=>{
-      const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a),new THREE.Vector3(...b)]);
-      add3(new THREE.Line(g,m));
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a),new THREE.Vector3(...b)]);
+      add3(new THREE.Line(g, m));
     });
 
     // Reset camera for this layout
@@ -626,6 +645,431 @@
   }
 
   // ═══════════════════════════════════════════════════════════
+  // CHART.JS — Bundle & S/N View
+  // ═══════════════════════════════════════════════════════════
+
+  const BD = { mount: null, chartInst: null };
+
+  const CHART_COLORS = [
+    '#3b82f6','#06b6d4','#8b5cf6','#ec4899','#22c55e',
+    '#f59e0b','#ef4444','#6366f1','#0ea5e9','#10b981',
+    '#f97316','#84cc16','#a78bfa','#fb7185','#34d399'
+  ];
+
+  function initBD() {
+    const wrap = document.querySelector('.cv-wrap');
+    BD.mount = document.createElement('div');
+    BD.mount.id = 'bd-mount';
+    BD.mount.style.cssText = [
+      'position:absolute;top:0;left:0;width:100%;height:100%;',
+      'display:none;overflow-y:auto;background:#f1f5f9;',
+      'font-family:Segoe UI,Arial,sans-serif;'
+    ].join('');
+    wrap.appendChild(BD.mount);
+  }
+
+  function renderBD() {
+    if (!BD.mount) return;
+    const its = window.items || [];
+    BD.mount.innerHTML = '';
+
+    // ── Header bar ──────────────────────────────────────────
+    const totalBundles = its.reduce((s,it)=>s+(it.bundles||0),0);
+    const totalSqm     = its.reduce((s,it)=>s+(it.sqm||0),0);
+    const totalSNs     = its.reduce((s,it)=>s+(it._allSns?it._allSns.length:0),0);
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;';
+    hdr.innerHTML = `
+      <div style="font-size:15px;font-weight:700;flex:1;min-width:200px;">📦 Bundle &amp; S/N Register</div>
+      ${[ ['Items',its.length,''], ['Bundles',totalBundles,'units'], ['Floor Area',totalSqm.toFixed(1),'m²'], ['Serial Nos.',totalSNs,'SNs'] ]
+        .map(([l,v,u])=>`<div style="text-align:center;"><div style="font-size:22px;font-weight:700;line-height:1">${v}</div><div style="font-size:10px;color:#93c5fd;">${l}${u?' ('+u+')':''}</div></div>`).join('')}
+    `;
+    BD.mount.appendChild(hdr);
+
+    if (!its.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;padding:60px;color:#94a3b8;font-size:14px;';
+      empty.textContent = 'Select a scenario to view bundle data.';
+      BD.mount.appendChild(empty);
+      return;
+    }
+
+    // ── Chart area ──────────────────────────────────────────
+    const chartWrap = document.createElement('div');
+    chartWrap.style.cssText = 'padding:16px 20px 8px;background:#fff;border-bottom:1px solid #e2e8f0;';
+    chartWrap.innerHTML = '<div style="font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">Bundle Distribution</div>';
+    const canvasWrap = document.createElement('div');
+    canvasWrap.style.cssText = 'height:160px;position:relative;';
+    const cvs = document.createElement('canvas');
+    cvs.id = 'bd-chart-cvs';
+    canvasWrap.appendChild(cvs);
+    chartWrap.appendChild(canvasWrap);
+    BD.mount.appendChild(chartWrap);
+
+    // Destroy previous chart instance
+    if (BD.chartInst) { try { BD.chartInst.destroy(); } catch(e){} BD.chartInst = null; }
+
+    if (window.Chart) {
+      const labels  = its.map(it => it.item.length>18 ? it.item.slice(0,16)+'…' : it.item);
+      const bundles = its.map(it => it.bundles||0);
+      BD.chartInst = new Chart(cvs, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Bundles',
+            data: bundles,
+            backgroundColor: its.map((_,i) => CHART_COLORS[i % CHART_COLORS.length] + 'cc'),
+            borderColor:     its.map((_,i) => CHART_COLORS[i % CHART_COLORS.length]),
+            borderWidth: 1.5,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.raw} bundles` } }
+          },
+          scales: {
+            x: { ticks: { font: { size: 9 }, color: '#64748b', maxRotation: 35 }, grid: { display: false } },
+            y: { ticks: { font: { size: 9 }, color: '#64748b' }, grid: { color: '#f1f5f9' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // ── Item cards ──────────────────────────────────────────
+    const grid = document.createElement('div');
+    grid.style.cssText = 'padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;';
+    BD.mount.appendChild(grid);
+
+    its.forEach((it, idx) => {
+      const color = CHART_COLORS[idx % CHART_COLORS.length];
+      const card = document.createElement('div');
+      card.style.cssText = [
+        'background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;',
+        'box-shadow:0 1px 4px rgba(0,0,0,.07);'
+      ].join('');
+
+      // Card header
+      const cHdr = document.createElement('div');
+      cHdr.style.cssText = `background:${color}18;border-bottom:2px solid ${color};padding:10px 12px;display:flex;align-items:center;gap:8px;`;
+      cHdr.innerHTML = `
+        <div style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+        <div style="font-size:11.5px;font-weight:700;color:#1e293b;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${it.item}</div>
+        <div style="background:${color};color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;">${it.bundles} bndl</div>
+      `;
+      card.appendChild(cHdr);
+
+      // Specs row
+      const specs = document.createElement('div');
+      specs.style.cssText = 'padding:8px 12px;display:flex;gap:16px;border-bottom:1px solid #f1f5f9;';
+      specs.innerHTML = [
+        `<div><div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">Dims</div><div style="font-size:10.5px;font-weight:600;color:#1e293b;">${it.L}×${it.W}×${it.H} m</div></div>`,
+        `<div><div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">Stack</div><div style="font-size:10.5px;font-weight:600;color:#1e293b;">×${it.stack}</div></div>`,
+        `<div><div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">Area</div><div style="font-size:10.5px;font-weight:600;color:#1e293b;">${it.sqm.toFixed(1)} m²</div></div>`,
+        it._containers && it._containers.length ?
+          `<div><div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">Container</div><div style="font-size:10.5px;font-weight:600;color:#1e293b;">${it._containers.join(', ')}</div></div>` : ''
+      ].join('');
+      card.appendChild(specs);
+
+      // Bundle dots
+      const dotArea = document.createElement('div');
+      dotArea.style.cssText = 'padding:8px 12px;border-bottom:1px solid #f1f5f9;';
+      const maxDots = Math.min(it.bundles, 40);
+      let dotsHtml = '<div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Bundles</div>';
+      dotsHtml += '<div style="display:flex;flex-wrap:wrap;gap:3px;">';
+      for (let b = 0; b < maxDots; b++) {
+        dotsHtml += `<div style="width:12px;height:12px;border-radius:2px;background:${color};opacity:${0.5 + (b/(maxDots*1.5))};"></div>`;
+      }
+      if (it.bundles > 40) dotsHtml += `<div style="font-size:9px;color:#64748b;align-self:center;margin-left:2px;">+${it.bundles-40}</div>`;
+      dotsHtml += '</div>';
+      dotArea.innerHTML = dotsHtml;
+      card.appendChild(dotArea);
+
+      // S/N badges
+      if (it._allSns && it._allSns.length > 0) {
+        const snArea = document.createElement('div');
+        snArea.style.cssText = 'padding:8px 12px;';
+        const maxSN = Math.min(it._allSns.length, 24);
+        let snHtml = '<div style="font-size:8.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Serial Numbers</div>';
+        snHtml += '<div style="display:flex;flex-wrap:wrap;gap:3px;">';
+        for (let s = 0; s < maxSN; s++) {
+          snHtml += `<span style="font-size:9px;font-weight:600;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;padding:1px 5px;border-radius:3px;">${it._allSns[s]}</span>`;
+        }
+        if (it._allSns.length > 24) snHtml += `<span style="font-size:9px;color:#94a3b8;padding:1px 4px;">+${it._allSns.length-24} more</span>`;
+        snHtml += '</div>';
+        snArea.innerHTML = snHtml;
+        card.appendChild(snArea);
+      }
+
+      grid.appendChild(card);
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CHART.JS — Report View
+  // ═══════════════════════════════════════════════════════════
+
+  const RPT = { mount: null, donutInst: null, barInst: null };
+
+  function initRPT() {
+    const wrap = document.querySelector('.cv-wrap');
+    RPT.mount = document.createElement('div');
+    RPT.mount.id = 'rpt-mount';
+    RPT.mount.style.cssText = [
+      'position:absolute;top:0;left:0;width:100%;height:100%;',
+      'display:none;overflow-y:auto;background:#f1f5f9;',
+      'font-family:Segoe UI,Arial,sans-serif;'
+    ].join('');
+    wrap.appendChild(RPT.mount);
+  }
+
+  function renderRPT() {
+    if (!RPT.mount) return;
+    const its = window.items || [];
+    const ly  = window.layout;
+    const rc  = window.rptCache;
+    RPT.mount.innerHTML = '';
+
+    // Destroy previous charts
+    if (RPT.donutInst) { try { RPT.donutInst.destroy(); } catch(e){} RPT.donutInst = null; }
+    if (RPT.barInst)   { try { RPT.barInst.destroy();   } catch(e){} RPT.barInst   = null; }
+
+    // ── Header ──────────────────────────────────────────────
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;';
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    hdr.innerHTML = `
+      <div style="font-size:15px;font-weight:700;flex:1;min-width:200px;">📋 Warehouse Analysis Report</div>
+      <div style="font-size:10px;color:#93c5fd;">Generated: ${dateStr}</div>
+    `;
+    RPT.mount.appendChild(hdr);
+
+    if (!its.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;padding:60px;color:#94a3b8;font-size:14px;';
+      empty.textContent = 'Select a scenario to view the report.';
+      RPT.mount.appendChild(empty);
+      return;
+    }
+
+    // ── Metric cards ────────────────────────────────────────
+    const totalSqm    = its.reduce((s,it)=>s+(it.sqm||0),0);
+    const totalVol    = its.reduce((s,it)=>{ const {dW,dH}=dd(it); return s+dW*dH*sh(it); },0);
+    const totalBndl   = its.reduce((s,it)=>s+(it.bundles||0),0);
+    const floorArea   = ly ? (ly.totalW * ly.totalH).toFixed(1) : '—';
+    const gbPct       = rc ? rc.gbPct.toFixed(1) : '—';
+
+    const metricsRow = document.createElement('div');
+    metricsRow.style.cssText = 'padding:16px 20px 8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;';
+    RPT.mount.appendChild(metricsRow);
+
+    const metricDefs = [
+      { icon:'📦', label:'Total Items',    val: its.length,                unit: 'items',    color:'#3b82f6' },
+      { icon:'🔢', label:'Total Bundles',  val: totalBndl,                 unit: 'units',    color:'#8b5cf6' },
+      { icon:'📐', label:'Material Area',  val: totalSqm.toFixed(1),       unit: 'm²',       color:'#06b6d4' },
+      { icon:'📦', label:'Volume Est.',    val: totalVol.toFixed(1),       unit: 'm³',       color:'#22c55e' },
+      { icon:'🏭', label:'Floor Area',     val: floorArea,                 unit: 'm²',       color:'#f59e0b' },
+      { icon:'⚙️', label:'GB/T Standards', val: gbPct+'%',                 unit: 'of pcs',   color:'#ec4899' },
+    ];
+    metricDefs.forEach(m => {
+      const card = document.createElement('div');
+      card.style.cssText = `background:#fff;border-radius:8px;border-left:3px solid ${m.color};padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);`;
+      card.innerHTML = `
+        <div style="font-size:18px;margin-bottom:4px;">${m.icon}</div>
+        <div style="font-size:20px;font-weight:700;color:#1e293b;line-height:1;">${m.val}</div>
+        <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${m.unit}</div>
+        <div style="font-size:10px;color:#64748b;margin-top:3px;font-weight:600;">${m.label}</div>
+      `;
+      metricsRow.appendChild(card);
+    });
+
+    // ── Charts row ──────────────────────────────────────────
+    const chartsRow = document.createElement('div');
+    chartsRow.style.cssText = 'padding:8px 20px 16px;display:grid;grid-template-columns:220px 1fr;gap:16px;';
+    RPT.mount.appendChild(chartsRow);
+
+    // Donut chart — area breakdown
+    const donutCard = document.createElement('div');
+    donutCard.style.cssText = 'background:#fff;border-radius:8px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);';
+    donutCard.innerHTML = '<div style="font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">Zone Breakdown</div>';
+    const donutWrap = document.createElement('div');
+    donutWrap.style.cssText = 'height:160px;position:relative;';
+    const donutCvs = document.createElement('canvas');
+    donutCvs.id = 'rpt-donut-cvs';
+    donutWrap.appendChild(donutCvs);
+    donutCard.appendChild(donutWrap);
+    chartsRow.appendChild(donutCard);
+
+    // Bar chart — per item area
+    const barCard = document.createElement('div');
+    barCard.style.cssText = 'background:#fff;border-radius:8px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);';
+    barCard.innerHTML = '<div style="font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">Area per Item (m²)</div>';
+    const barWrap = document.createElement('div');
+    barWrap.style.cssText = 'height:160px;position:relative;';
+    const barCvs = document.createElement('canvas');
+    barCvs.id = 'rpt-bar-cvs';
+    barWrap.appendChild(barCvs);
+    barCard.appendChild(barWrap);
+    chartsRow.appendChild(barCard);
+
+    if (window.Chart) {
+      // Donut: zone area breakdown
+      const leftSqm  = rc ? rc.structArea : totalSqm * 0.5;
+      const gbSqm    = rc ? rc.gbArea     : totalSqm * 0.3;
+      const restSqm  = Math.max(0, totalSqm - leftSqm - gbSqm);
+      RPT.donutInst = new Chart(donutCvs, {
+        type: 'doughnut',
+        data: {
+          labels: ['Structural', 'GB/T Items', 'Other'],
+          datasets: [{ data: [leftSqm.toFixed(1), gbSqm.toFixed(1), restSqm.toFixed(1)],
+            backgroundColor: ['#3b82f6cc','#22c55ecc','#f59e0bcc'],
+            borderColor: ['#3b82f6','#22c55e','#f59e0b'], borderWidth: 2 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, cutout: '60%',
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 9 }, padding: 8, color: '#64748b' } },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.raw} m²` } }
+          }
+        }
+      });
+
+      // Bar: per-item area
+      const sorted = [...its].sort((a,b) => b.sqm - a.sqm).slice(0, 12);
+      RPT.barInst = new Chart(barCvs, {
+        type: 'bar',
+        data: {
+          labels: sorted.map(it => it.item.length>18 ? it.item.slice(0,16)+'…' : it.item),
+          datasets: [{
+            label: 'm²',
+            data: sorted.map(it => it.sqm.toFixed(2)),
+            backgroundColor: sorted.map((_,i) => CHART_COLORS[i % CHART_COLORS.length] + 'bb'),
+            borderColor:     sorted.map((_,i) => CHART_COLORS[i % CHART_COLORS.length]),
+            borderWidth: 1.5, borderRadius: 4,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ` ${ctx.raw} m²` } }
+          },
+          scales: {
+            x: { ticks: { font: { size: 9 }, color: '#64748b' }, grid: { color: '#f8fafc' }, beginAtZero: true },
+            y: { ticks: { font: { size: 9 }, color: '#64748b' }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ── GB/T Analysis section ───────────────────────────────
+    if (rc) {
+      const gbSec = document.createElement('div');
+      gbSec.style.cssText = 'padding:0 20px 16px;';
+      const gbCard = document.createElement('div');
+      gbCard.style.cssText = 'background:#fff;border-radius:8px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);';
+      gbCard.innerHTML = `
+        <div style="font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">GB/T Standard Analysis</div>
+        <div style="display:flex;gap:20px;margin-bottom:12px;flex-wrap:wrap;">
+          <div style="background:#eff6ff;border-radius:6px;padding:10px 14px;text-align:center;min-width:110px;">
+            <div style="font-size:22px;font-weight:700;color:#1d4ed8;">${rc.totalGBpcs}</div>
+            <div style="font-size:9px;color:#3b82f6;font-weight:600;text-transform:uppercase;">GB/T Pieces</div>
+          </div>
+          <div style="background:#f0fdf4;border-radius:6px;padding:10px 14px;text-align:center;min-width:110px;">
+            <div style="font-size:22px;font-weight:700;color:#16a34a;">${rc.totalNonGBpcs}</div>
+            <div style="font-size:9px;color:#22c55e;font-weight:600;text-transform:uppercase;">Non-GB/T Pieces</div>
+          </div>
+          <div style="background:#fef3c7;border-radius:6px;padding:10px 14px;text-align:center;min-width:110px;">
+            <div style="font-size:22px;font-weight:700;color:#d97706;">${rc.gbPct.toFixed(1)}%</div>
+            <div style="font-size:9px;color:#f59e0b;font-weight:600;text-transform:uppercase;">GB/T Ratio</div>
+          </div>
+        </div>
+      `;
+      // GB family table
+      if (rc.gbFamilies && rc.gbFamilies.length) {
+        const tbl = document.createElement('table');
+        tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:10px;';
+        tbl.innerHTML = `
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="text-align:left;padding:5px 8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;">Standard</th>
+              <th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;">Qty</th>
+              <th style="text-align:right;padding:5px 8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid #e2e8f0;">Spec Variants</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rc.gbFamilies.slice(0,10).map((f,i) => `
+              <tr style="border-bottom:1px solid #f1f5f9;${i%2===1?'background:#f8fafc;':''}">
+                <td style="padding:5px 8px;color:#1e293b;font-weight:500;">${f.std}</td>
+                <td style="padding:5px 8px;text-align:right;color:#1d4ed8;font-weight:700;">${f.qty}</td>
+                <td style="padding:5px 8px;text-align:right;color:#64748b;">${f.specs}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        `;
+        gbCard.appendChild(tbl);
+        if (rc.gbFamilies.length > 10) {
+          const more = document.createElement('div');
+          more.style.cssText = 'font-size:9.5px;color:#94a3b8;padding:5px 0;text-align:right;';
+          more.textContent = `+ ${rc.gbFamilies.length - 10} more standards`;
+          gbCard.appendChild(more);
+        }
+      }
+      gbSec.appendChild(gbCard);
+      RPT.mount.appendChild(gbSec);
+    }
+
+    // ── Full item data table ─────────────────────────────────
+    const tblSec = document.createElement('div');
+    tblSec.style.cssText = 'padding:0 20px 20px;';
+    const tblCard = document.createElement('div');
+    tblCard.style.cssText = 'background:#fff;border-radius:8px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow-x:auto;';
+    tblCard.innerHTML = '<div style="font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">Item Detail Table</div>';
+    const tbl = document.createElement('table');
+    tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:10px;min-width:600px;';
+    tbl.innerHTML = `
+      <thead>
+        <tr style="background:#1e3a5f;color:#fff;">
+          <th style="text-align:left;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">#</th>
+          <th style="text-align:left;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Item</th>
+          <th style="text-align:center;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">L×W×H (m)</th>
+          <th style="text-align:center;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Bundles</th>
+          <th style="text-align:center;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Stack</th>
+          <th style="text-align:right;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">Area m²</th>
+          <th style="text-align:right;padding:7px 10px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.5px;">S/Ns</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${its.map((it,i) => `
+          <tr style="border-bottom:1px solid #f1f5f9;${i%2===1?'background:#f8fafc;':''}">
+            <td style="padding:6px 10px;color:#94a3b8;font-size:9px;">${i+1}</td>
+            <td style="padding:6px 10px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div style="width:8px;height:8px;border-radius:50%;background:${CHART_COLORS[i%CHART_COLORS.length]};flex-shrink:0;"></div>
+                <span style="font-weight:600;color:#1e293b;">${it.item}</span>
+              </div>
+            </td>
+            <td style="padding:6px 10px;text-align:center;color:#475569;">${it.L}×${it.W}×${it.H}</td>
+            <td style="padding:6px 10px;text-align:center;font-weight:700;color:#1d4ed8;">${it.bundles}</td>
+            <td style="padding:6px 10px;text-align:center;color:#475569;">×${it.stack}</td>
+            <td style="padding:6px 10px;text-align:right;font-weight:600;color:#1e293b;">${it.sqm.toFixed(2)}</td>
+            <td style="padding:6px 10px;text-align:right;color:#64748b;">${it._allSns?it._allSns.length:0}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    `;
+    tblCard.appendChild(tbl);
+    tblSec.appendChild(tblCard);
+    RPT.mount.appendChild(tblSec);
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // TAB SWITCHER
   // ═══════════════════════════════════════════════════════════
 
@@ -633,11 +1077,13 @@
     currentTab = tab;
 
     // Hide all renderer containers
-    const cvs   = document.getElementById('cvs');
-    const konva = document.getElementById('konva-mount');
-    const three = document.getElementById('three-mount');
-    const pixi  = document.getElementById('pixi-mount');
-    [cvs, konva, three, pixi].forEach(el => el && (el.style.display = 'none'));
+    const cvs    = document.getElementById('cvs');
+    const konva  = document.getElementById('konva-mount');
+    const three  = document.getElementById('three-mount');
+    const pixi   = document.getElementById('pixi-mount');
+    const bdMnt  = document.getElementById('bd-mount');
+    const rptMnt = document.getElementById('rpt-mount');
+    [cvs, konva, three, pixi, bdMnt, rptMnt].forEach(el => el && (el.style.display = 'none'));
 
     // Legend: show only for 2D
     manageLegend(tab);
@@ -652,6 +1098,12 @@
     } else if (tab === 'fp' && pixi) {
       pixi.style.display = 'block';
       renderPixiFootprint();
+    } else if (tab === 'bd' && bdMnt) {
+      bdMnt.style.display = 'block';
+      renderBD();
+    } else if (tab === 'rpt' && rptMnt) {
+      rptMnt.style.display = 'block';
+      renderRPT();
     } else if (cvs) {
       cvs.style.display = 'block';
     }
@@ -667,6 +1119,9 @@
       if (window.Konva) { try { initKonva(); } catch(e) { console.warn('[Konva]',e); } }
       if (window.THREE) { try { initThree(); } catch(e) { console.warn('[Three]',e); } }
       if (window.PIXI)  { try { initPixi();  } catch(e) { console.warn('[PixiJS]',e); } }
+      // BD and RPT always init (Chart.js check is inside render)
+      try { initBD();  } catch(e) { console.warn('[BD]',e); }
+      try { initRPT(); } catch(e) { console.warn('[RPT]',e); }
 
       // Intercept switchTab — update currentTab FIRST, then call original, then refresh renderer
       const _origSwitchTab = window.switchTab;
@@ -678,12 +1133,14 @@
       };
 
       // Override window.draw — called from HTML event handlers
-      const cvs_     = document.getElementById('cvs');
-      const _origDraw = window.draw; // capture original before overwriting
+      const cvs_      = document.getElementById('cvs');
+      const _origDraw = window.draw;
       window.draw = function () {
         if (currentTab === '2d')         { K._fitted=false; renderKonva(); }
         else if (currentTab === 'three') { buildThreeScene(); }
         else if (currentTab === 'fp')    { renderPixiFootprint(); }
+        else if (currentTab === 'bd')    { renderBD(); }
+        else if (currentTab === 'rpt')   { renderRPT(); }
         else {
           if (cvs_) cvs_.style.display = 'block';
           if (typeof _origDraw === 'function') _origDraw();

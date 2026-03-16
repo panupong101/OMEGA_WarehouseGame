@@ -41,6 +41,7 @@ let stripMode=true; // ALWAYS ON: each material = one column width E-W, extends 
 
 // ══════════════════════ DATA ══════════════════════
 const ships=WH_DATA.shipments;
+window.ships=ships;
 const itemMap={};
 ships.forEach((s,si)=>s.containers.forEach((c,ci)=>c.items.forEach((it,ii)=>{
   const id=`s${si}c${ci}i${ii}`;
@@ -1631,7 +1632,7 @@ function loadScenario(){
 }
 
 // ── Pre-compute report cache for GB/T + area analysis ──
-let rptCache=null;
+var rptCache=null;
 // ── Truck trip cache: computed once per scenario/layout, reused by report + truck view ──
 let _truckTripsCache=null, _truckTripsDirty=true;
 function invalidateTruckTrips(){_truckTripsDirty=true;_truckTripsCache=null;}
