@@ -78,6 +78,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 MIT License — see [LICENSE](LICENSE) for details.
 
+## See Also
+
+- [GitHub Repository](https://github.com/Woojae66/OMEGA_WarehouseGame)
+- [Live Demo](https://Woojae66.github.io/OMEGA_WarehouseGame/)
+
 ---
 
 Built with care for the AXL x ALP Thailand Project.
