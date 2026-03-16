@@ -53,9 +53,10 @@ jobs:
       - name: Build
         run: |
           mkdir -p _site
-          cp src/index.html _site/index.html
+          cp -r src/. _site/
           cp -r docs/ _site/docs/ 2>/dev/null || true
-          echo "Build complete"
+          echo "Build complete — files included:"
+          find _site -type f
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
