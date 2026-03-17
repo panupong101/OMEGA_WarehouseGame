@@ -252,8 +252,8 @@
     const W = wrap.clientWidth, H = wrap.clientHeight;
     T.scene = new THREE.Scene();
     // ── Construction drawing: blueprint-white drafting paper ──
-    T.scene.background = new THREE.Color(0xede9e0);
-    T.scene.fog = new THREE.Fog(0xede9e0, 280, 560);
+    T.scene.background = new THREE.Color(0xc8c0b0);
+    T.scene.fog = new THREE.Fog(0xc8c0b0, 280, 560);
 
     T.camera = new THREE.PerspectiveCamera(46, W/H, 0.1, 1000);
     T.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -272,14 +272,14 @@
     // ── Ground: crisp white with bold 1m graph-paper grid ──
     const groundMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(600, 600),
-      new THREE.MeshLambertMaterial({ color: 0xede9e0 })  // warm drafting paper
+      new THREE.MeshLambertMaterial({ color: 0xb8b0a0 })  // medium-dark ground — clearly separate from white floor
     );
     groundMesh.rotation.x = -Math.PI/2; groundMesh.position.y = -0.04;
     T.scene.add(groundMesh);
-    // 5m major grid — warm sepia
-    T.scene.add(new THREE.GridHelper(600, 120, 0xb0a090, 0xb0a090));
-    // 1m minor grid — light tan
-    T.scene.add(new THREE.GridHelper(600, 600, 0xd4c8b8, 0xd4c8b8));
+    // 5m major grid — dark brown on ground
+    T.scene.add(new THREE.GridHelper(600, 120, 0x706050, 0x706050));
+    // 1m minor grid — medium brown
+    T.scene.add(new THREE.GridHelper(600, 600, 0x9a9080, 0x9a9080));
 
     // Mouse orbit
     const el = T.renderer.domElement;
@@ -418,14 +418,14 @@
     // ── Warehouse floor slab: white drafting paper ────────────
     const slab = new THREE.Mesh(
       new THREE.BoxGeometry(W, 0.10, H),
-      new THREE.MeshLambertMaterial({ color: 0xfaf7f0 })
+      new THREE.MeshLambertMaterial({ color: 0xffffff })  // bright white — stark contrast vs outside ground
     );
     slab.position.set(W/2, -0.05, H/2);
     add3(slab);
 
-    // Bold 1m grid lines on slab — dark navy major (5m), medium blue minor (1m)
-    const majorLineMat = new THREE.MeshLambertMaterial({ color: 0x4a4030 });
-    const minorLineMat = new THREE.MeshLambertMaterial({ color: 0xb0a090, transparent:true, opacity:.7 });
+    // Bold 1m grid lines on slab — dark for legibility on white
+    const majorLineMat = new THREE.MeshLambertMaterial({ color: 0x2a2018 });
+    const minorLineMat = new THREE.MeshLambertMaterial({ color: 0x9a9080, transparent:true, opacity:.6 });
     for (let xi=0; xi<=Math.ceil(W); xi++) {
       const isMaj = xi%5===0;
       const m = new THREE.Mesh(new THREE.BoxGeometry(isMaj?.07:.028,.012,H), isMaj?majorLineMat:minorLineMat);
@@ -439,7 +439,7 @@
 
     // ── NO walls, NO roof — open-plan view ───────────────────
     // Just a clean perimeter edge trim on the slab
-    const edgeMat = new THREE.MeshLambertMaterial({ color: 0xb0aaa0 });
+    const edgeMat = new THREE.MeshLambertMaterial({ color: 0x5a5040 });
     const eT = 0.08, eH = 0.28;
     [[W/2, eH/2, 0,   W, eH, eT],
      [W/2, eH/2, H,   W, eH, eT],
@@ -498,16 +498,16 @@
 
       for (let layer = 0; layer < effStack; layer++) {
         // Slightly lighter shade on top layers for stacking depth
-        // Arch drawing style: pastel fill (blend toward white) + bold black outline
-        const shade = Math.max(0.55, 1 - layer * 0.09);
+        // Arch drawing style: light-tinted fill (blend toward white 30%) + bold black outline
+        const shade = Math.max(0.65, 1 - layer * 0.07);
         const rawHex = cssToHex(shadeColor(cssColor, shade));
-        // Blend toward white 55% for pastel feel
-        const rp = Math.round(((rawHex>>16)&0xff)*0.45 + 255*0.55);
-        const gp = Math.round(((rawHex>>8)&0xff)*0.45 + 255*0.55);
-        const bp = Math.round((rawHex&0xff)*0.45 + 255*0.55);
-        const pastel = (rp<<16)|(gp<<8)|bp;
-        const mat   = new THREE.MeshLambertMaterial({ color: isSel ? 0xffd700 : pastel });
-        const outlineMat = new THREE.LineBasicMaterial({ color: isSel ? 0xb45309 : 0x111111, transparent:true, opacity: isSel ? 1.0 : 0.88 });
+        // Blend toward white 30% — keeps color vivid and recognisable
+        const rp = Math.round(((rawHex>>16)&0xff)*0.70 + 255*0.30);
+        const gp = Math.round(((rawHex>>8)&0xff)*0.70 + 255*0.30);
+        const bp = Math.round((rawHex&0xff)*0.70 + 255*0.30);
+        const tinted = (rp<<16)|(gp<<8)|bp;
+        const mat   = new THREE.MeshLambertMaterial({ color: isSel ? 0xffd700 : tinted });
+        const outlineMat = new THREE.LineBasicMaterial({ color: isSel ? 0xb45309 : 0x111111, transparent:true, opacity: isSel ? 1.0 : 0.92 });
 
         for (let row = 0; row < rows; row++) {
           for (let col2 = 0; col2 < cols; col2++) {
