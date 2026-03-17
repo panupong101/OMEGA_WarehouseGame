@@ -251,32 +251,35 @@
 
     const W = wrap.clientWidth, H = wrap.clientHeight;
     T.scene = new THREE.Scene();
-    // ── Clean architectural sky (near-white pale blue) ──
-    T.scene.background = new THREE.Color(0xeef4fb);
-    T.scene.fog = new THREE.Fog(0xeef4fb, 220, 500);
+    // ── Construction drawing: blueprint-white drafting paper ──
+    T.scene.background = new THREE.Color(0xe8eef6);
+    T.scene.fog = new THREE.Fog(0xe8eef6, 260, 550);
 
-    T.camera = new THREE.PerspectiveCamera(48, W/H, 0.1, 1000);
+    T.camera = new THREE.PerspectiveCamera(46, W/H, 0.1, 1000);
     T.renderer = new THREE.WebGLRenderer({ antialias: true });
     T.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     T.renderer.setSize(W, H);
     T.renderer.shadowMap.enabled = false;
     T.mount.appendChild(T.renderer.domElement);
 
-    // ── Crisp daylight — balanced for vivid item colours ──
-    T.scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-    const sun = new THREE.DirectionalLight(0xfff8f0, 0.75);
-    sun.position.set(60, 100, 50); T.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0xe8f0ff, 0.35);
-    fill.position.set(-50, 40, -30); T.scene.add(fill);
+    // ── Drafting-room light: bright, cool, even ──
+    T.scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const sun = new THREE.DirectionalLight(0xf0f4ff, 0.7);
+    sun.position.set(50, 90, 40); T.scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xd8e8ff, 0.3);
+    fill.position.set(-40, 30, -25); T.scene.add(fill);
 
-    // ── Ground: clean light-grey plane + subtle grid ──
+    // ── Ground: crisp white with bold 1m graph-paper grid ──
     const groundMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(800, 800),
-      new THREE.MeshLambertMaterial({ color: 0xddd9d2 })
+      new THREE.PlaneGeometry(600, 600),
+      new THREE.MeshLambertMaterial({ color: 0xfafcff })  // drafting paper white
     );
     groundMesh.rotation.x = -Math.PI/2; groundMesh.position.y = -0.04;
     T.scene.add(groundMesh);
-    T.scene.add(new THREE.GridHelper(800, 160, 0xc8c4bc, 0xd4d0c8));
+    // 5m major grid — dark navy blue, clearly visible
+    T.scene.add(new THREE.GridHelper(600, 120, 0x5577aa, 0x5577aa));
+    // 1m minor grid — medium blue
+    T.scene.add(new THREE.GridHelper(600, 600, 0xaabbd0, 0xaabbd0));
 
     // Mouse orbit
     const el = T.renderer.domElement;
@@ -400,26 +403,26 @@
     const W   = ly.totalW;
     const H   = ly.totalH;
 
-    // ── Warehouse concrete slab ──────────────────────────────
+    // ── Warehouse floor slab: white drafting paper ────────────
     const slab = new THREE.Mesh(
-      new THREE.BoxGeometry(W, 0.18, H),
-      new THREE.MeshLambertMaterial({ color: 0xd4cfc0 }) // warm concrete
+      new THREE.BoxGeometry(W, 0.10, H),
+      new THREE.MeshLambertMaterial({ color: 0xffffff })
     );
-    slab.position.set(W/2, -0.09, H/2);
+    slab.position.set(W/2, -0.05, H/2);
     add3(slab);
 
-    // Concrete grid lines on slab (1m minor, 5m major)
-    const minorLineMat = new THREE.MeshLambertMaterial({ color: 0xbab5a6, transparent:true, opacity:.6 });
-    const majorLineMat = new THREE.MeshLambertMaterial({ color: 0x9c9789, transparent:true, opacity:.9 });
+    // Bold 1m grid lines on slab — dark navy major (5m), medium blue minor (1m)
+    const majorLineMat = new THREE.MeshLambertMaterial({ color: 0x3a5f88 });
+    const minorLineMat = new THREE.MeshLambertMaterial({ color: 0x90aac8, transparent:true, opacity:.75 });
     for (let xi=0; xi<=Math.ceil(W); xi++) {
       const isMaj = xi%5===0;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(isMaj?.06:.025,.01,H), isMaj?majorLineMat:minorLineMat);
-      m.position.set(xi,.002,H/2); add3(m);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(isMaj?.07:.028,.012,H), isMaj?majorLineMat:minorLineMat);
+      m.position.set(xi,.006,H/2); add3(m);
     }
     for (let zi=0; zi<=Math.ceil(H); zi++) {
       const isMaj = zi%5===0;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(W,.01,isMaj?.06:.025), isMaj?majorLineMat:minorLineMat);
-      m.position.set(W/2,.002,zi); add3(m);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(W,.012,isMaj?.07:.028), isMaj?majorLineMat:minorLineMat);
+      m.position.set(W/2,.006,zi); add3(m);
     }
 
     // ── NO walls, NO roof — open-plan view ───────────────────
@@ -491,6 +494,7 @@
         const shade = Math.max(0.55, 1 - layer * 0.09);
         const col   = cssToHex(shadeColor(cssColor, shade));
         const mat   = new THREE.MeshLambertMaterial({ color: isSel ? 0xffd700 : col });
+        const outlineMat = new THREE.LineBasicMaterial({ color: isSel ? 0xffd700 : 0x1e3a5f, transparent:true, opacity: isSel ? 0.9 : 0.45 });
 
         for (let row = 0; row < rows; row++) {
           for (let col2 = 0; col2 < cols; col2++) {
@@ -503,6 +507,10 @@
             const mesh = new THREE.Mesh(bundleGeo, mat);
             mesh.position.set(bx, by, bz);
             add3(mesh);
+            // Construction drawing outline
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(bundleGeo), outlineMat);
+            edges.position.set(bx, by, bz);
+            add3(edges);
           }
         }
       }
@@ -1075,7 +1083,7 @@
     mount: null, sidebar: null, infoBar: null, canvasWrap: null,
     objs: [], selectedTrip: 0,
     drag: false, theta: -0.55, phi: 0.68, r: 16,
-    ds: { x: 0, y: 0 }, itemColorMap: {}
+    ds: { x: 0, y: 0 }, itemColorMap: {}, _utilChart: null
   };
 
   function initTL() {
@@ -1182,105 +1190,213 @@
     const trips = (window.getCachedTruckTrips && window.items && window.items.length)
       ? window.getCachedTruckTrips() : [];
 
-    // Build stable item→color map
-    TL.itemColorMap = {};
-    (window.items || []).forEach((it, i) => {
-      TL.itemColorMap[it.item] = CHART_COLORS[i % CHART_COLORS.length];
-    });
+    // Clear and rebuild as a modern 2D dashboard (Chart.js + HTML)
+    TL.mount.innerHTML = '';
+    TL.mount.style.cssText = [
+      'position:absolute;top:0;left:0;width:100%;height:100%;',
+      'display:none;overflow-y:auto;background:#f1f5f9;',
+      'font-family:Segoe UI,Arial,sans-serif;'
+    ].join('');
 
-    // ── Logistics summary ────────────────────────────────────
-    const nTrips     = trips.length;
-    const totalBdl   = (window.items||[]).reduce((s,it)=>s+it.bundles,0);
-    const roundTrip  = 95; // min
-    const tripsPerDay= 4;
-    const days       = Math.ceil(nTrips / tripsPerDay);
-    const avgUtil    = nTrips ? Math.round(trips.reduce((s,t)=>{
+    const nTrips    = trips.length;
+    const totalBdl  = (window.items||[]).reduce((s,it)=>s+it.bundles,0);
+    const avgUtil   = nTrips ? Math.round(trips.reduce((s,t)=>{
       const ua=t.loads.reduce((ss,ld)=>ss+ld.w*ld.h,0);
-      return s+ua/(DECK_L*DECK_W)*100;
+      return s + ua/(DECK_L*DECK_W)*100;
     },0)/nTrips) : 0;
+    const roundTrip = 95;
+    const tripsPerDay = 4;
+    const days = nTrips ? Math.ceil(nTrips/tripsPerDay) : 0;
 
-    // ── Info bar ─────────────────────────────────────────────
-    TL.infoBar.innerHTML = `
-      <div style="font-size:14px;font-weight:700;color:#1e293b;white-space:nowrap;">🚛 Truck Loading Simulator</div>
-      <div style="width:1px;height:24px;background:#e2e8f0;"></div>
-      ${[
-        ['Trips',         nTrips,         ''],
-        ['Bundles',       totalBdl,        ''],
-        ['Avg Util.',     avgUtil+'%',     ''],
-        ['Working Days',  days,            ''],
-        ['Deck',          DECK_L+'×'+DECK_W+' m', ''],
-      ].map(([l,v])=>`
-        <div style="text-align:center;min-width:60px;">
-          <div style="font-size:16px;font-weight:700;color:#1e3a5f;line-height:1;">${v}</div>
-          <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">${l}</div>
-        </div>`).join('')}
-      <div style="margin-left:auto;display:flex;gap:6px;">
-        <button id="tl-prev" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;">◀</button>
-        <span id="tl-pgind" style="font-size:11px;color:#64748b;align-self:center;min-width:50px;text-align:center;">Trip 1/${nTrips}</span>
-        <button id="tl-next" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;">▶</button>
-      </div>`;
-
-    const prevBtn = document.getElementById('tl-prev');
-    const nextBtn = document.getElementById('tl-next');
-    const pgInd   = document.getElementById('tl-pgind');
-    if (prevBtn) prevBtn.onclick = () => { TL.selectedTrip=Math.max(0,TL.selectedTrip-1); updateTLView(trips,pgInd); };
-    if (nextBtn) nextBtn.onclick = () => { TL.selectedTrip=Math.min(nTrips-1,TL.selectedTrip+1); updateTLView(trips,pgInd); };
-
-    // ── Sidebar: trip list ───────────────────────────────────
-    TL.sidebar.innerHTML = '';
-    const sHdr = document.createElement('div');
-    sHdr.style.cssText = 'padding:12px 10px 8px;color:#94a3b8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #334155;';
-    sHdr.textContent = `${nTrips} Trips · ${totalBdl} Bundles`;
-    TL.sidebar.appendChild(sHdr);
+    // ── Header ─────────────────────────────────────────────
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;';
+    hdr.innerHTML = `
+      <div style="font-size:15px;font-weight:700;flex:1;min-width:200px;">🚛 Truck Loading Plan — 12m Flatbed (${DECK_L}×${DECK_W}m)</div>
+      ${[['Trips',nTrips,''],['Bundles',totalBdl,''],['Avg Util.',avgUtil+'%',''],['Working Days',days,''],['Round Trip',roundTrip+' min','']]
+        .map(([l,v])=>`<div style="text-align:center;"><div style="font-size:20px;font-weight:700;line-height:1;">${v}</div><div style="font-size:9px;color:#93c5fd;text-transform:uppercase;letter-spacing:.5px;">${l}</div></div>`).join('')}
+    `;
+    TL.mount.appendChild(hdr);
 
     if (!nTrips) {
       const empty = document.createElement('div');
-      empty.style.cssText = 'padding:20px 10px;color:#64748b;font-size:11px;text-align:center;';
-      empty.textContent = 'Select a scenario first.';
-      TL.sidebar.appendChild(empty);
-    } else {
-      trips.forEach((trip, ti) => {
-        const util = Math.round(trip.loads.reduce((s,ld)=>s+ld.w*ld.h,0) / (DECK_L*DECK_W) * 100);
-        const uColor = util>=80?'#22c55e':util>=60?'#f59e0b':'#ef4444';
-        const usedVol = trip.loads.reduce((s,ld)=>s+ld.w*ld.h*(ld.sH||0.5),0);
-        const card = document.createElement('div');
-        card.style.cssText = [
-          `background:${ti===TL.selectedTrip?'#334155':'transparent'};`,
-          'padding:10px 10px 8px;border-bottom:1px solid #273447;cursor:pointer;',
-          'transition:background .15s;'
-        ].join('');
-        card.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-            <span style="color:#e2e8f0;font-size:11px;font-weight:700;">Trip ${ti+1}</span>
-            <span style="color:${uColor};font-size:10px;font-weight:700;">${util}%</span>
-          </div>
-          <div style="background:#1e293b;border-radius:3px;height:4px;margin-bottom:6px;overflow:hidden;">
-            <div style="background:${uColor};width:${util}%;height:100%;border-radius:3px;"></div>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            ${[...new Set(trip.loads.map(ld=>ld.item))].slice(0,4).map(nm=>{
-              const c = TL.itemColorMap[nm] || '#64748b';
-              const short = nm.length>14 ? nm.slice(0,12)+'…' : nm;
-              return `<span style="font-size:8px;background:${c}33;color:${c};border:1px solid ${c}55;border-radius:3px;padding:1px 4px;">${short}</span>`;
-            }).join('')}
-          </div>
-          <div style="color:#64748b;font-size:9px;margin-top:4px;">${trip.loads.length} pcs · ${usedVol.toFixed(1)} m³</div>`;
-        card.onclick = () => {
-          TL.selectedTrip = ti;
-          if (pgInd) pgInd.textContent = `Trip ${ti+1}/${nTrips}`;
-          updateTLView(trips, pgInd);
-        };
-        TL.sidebar.appendChild(card);
+      empty.style.cssText = 'text-align:center;padding:60px;color:#94a3b8;font-size:14px;';
+      empty.textContent = 'Select a scenario to view truck loading plan.';
+      TL.mount.appendChild(empty);
+      return;
+    }
+
+    // ── Utilisation chart ──────────────────────────────────
+    const chartSec = document.createElement('div');
+    chartSec.style.cssText = 'padding:16px 20px 8px;background:#fff;border-bottom:1px solid #e2e8f0;';
+    chartSec.innerHTML = '<div style="font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">Deck Utilisation per Trip (%)</div>';
+    const chartH = document.createElement('div');
+    chartH.style.cssText = `height:${Math.min(160, nTrips*22+40)}px;position:relative;`;
+    const utilCvs = document.createElement('canvas');
+    chartH.appendChild(utilCvs);
+    chartSec.appendChild(chartH);
+    TL.mount.appendChild(chartSec);
+
+    // Destroy old chart if any
+    if (TL._utilChart) { try { TL._utilChart.destroy(); } catch(e){} TL._utilChart = null; }
+    if (window.Chart) {
+      const utils = trips.map(t => {
+        const ua = t.loads.reduce((s,ld)=>s+ld.w*ld.h,0);
+        return Math.round(ua/(DECK_L*DECK_W)*100);
+      });
+      TL._utilChart = new Chart(utilCvs, {
+        type: 'bar',
+        data: {
+          labels: trips.map((_,i)=>`Trip ${i+1}`),
+          datasets: [{
+            label: 'Utilisation %',
+            data: utils,
+            backgroundColor: utils.map(u => u>=80?'#22c55ecc':u>=60?'#f59e0bcc':'#ef4444cc'),
+            borderColor:     utils.map(u => u>=80?'#16a34a':u>=60?'#d97706':'#dc2626'),
+            borderWidth: 1.5, borderRadius: 4,
+          }]
+        },
+        options: {
+          indexAxis: 'y', responsive:true, maintainAspectRatio:false,
+          plugins: { legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.raw}%`}} },
+          scales: {
+            x: { min:0, max:100, ticks:{font:{size:9},color:'#64748b',callback:v=>v+'%'}, grid:{color:'#f1f5f9'} },
+            y: { ticks:{font:{size:9},color:'#64748b'}, grid:{display:false} }
+          }
+        }
       });
     }
 
-    // Draw first trip
-    if (trips.length) {
-      if (TL.selectedTrip >= trips.length) TL.selectedTrip = 0;
-      updateTLView(trips, pgInd);
-    } else {
-      clearTL3();
-    }
+    // ── Trip cards grid ────────────────────────────────────
+    const grid = document.createElement('div');
+    grid.style.cssText = 'padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;';
+    TL.mount.appendChild(grid);
+
+    trips.forEach((trip, ti) => {
+      const usedArea = trip.loads.reduce((s,ld)=>s+ld.w*ld.h,0);
+      const util     = Math.round(usedArea/(DECK_L*DECK_W)*100);
+      const usedVol  = trip.loads.reduce((s,ld)=>s+ld.w*ld.h*(ld.sH||0.4),0);
+      const uColor   = util>=80?'#22c55e':util>=60?'#f59e0b':'#ef4444';
+      const uBg      = util>=80?'#f0fdf4':util>=60?'#fffbeb':'#fef2f2';
+
+      const card = document.createElement('div');
+      card.style.cssText = 'background:#fff;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07);';
+
+      // Card header
+      const cHdr = document.createElement('div');
+      cHdr.style.cssText = `background:#1e3a5f;padding:10px 14px;display:flex;align-items:center;gap:10px;`;
+      cHdr.innerHTML = `
+        <span style="color:#fff;font-size:12px;font-weight:700;">Trip ${ti+1}</span>
+        <span style="color:#93c5fd;font-size:10px;">${trip.loads.length} pcs · ${usedVol.toFixed(1)} m³</span>
+        <div style="margin-left:auto;background:${uColor};color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">${util}%</div>`;
+      card.appendChild(cHdr);
+
+      // Utilisation bar
+      const barWrap = document.createElement('div');
+      barWrap.style.cssText = 'height:5px;background:#e2e8f0;';
+      const barFill = document.createElement('div');
+      barFill.style.cssText = `height:100%;width:${util}%;background:${uColor};transition:width .4s;`;
+      barWrap.appendChild(barFill);
+      card.appendChild(barWrap);
+
+      // ── 2D deck diagram via Canvas ─────────────────────
+      const deckWrap = document.createElement('div');
+      deckWrap.style.cssText = 'padding:10px 14px 6px;background:#f8fafc;';
+      const dCvs = document.createElement('canvas');
+      const SCALE = 24; // px per metre
+      dCvs.width  = Math.round(DECK_L * SCALE);
+      dCvs.height = Math.round(DECK_W * SCALE);
+      dCvs.style.cssText = `width:100%;height:auto;max-width:${DECK_L*SCALE}px;border:1.5px solid #cbd5e1;border-radius:4px;display:block;`;
+      deckWrap.appendChild(dCvs);
+      card.appendChild(deckWrap);
+
+      // Draw deck diagram after mount
+      setTimeout(() => {
+        const dc = dCvs.getContext('2d');
+        const sw = dCvs.width, sh = dCvs.height;
+        // Deck background — timber colour
+        dc.fillStyle = '#e8e0cc'; dc.fillRect(0,0,sw,sh);
+        // Plank lines
+        dc.strokeStyle = '#d4c8ae'; dc.lineWidth = 0.8;
+        for (let y=0; y<=sh; y+=6) { dc.beginPath(); dc.moveTo(0,y); dc.lineTo(sw,y); dc.stroke(); }
+        // 1m grid lines
+        dc.strokeStyle = '#bbb0a0'; dc.lineWidth = 0.5;
+        for (let x=0; x<=DECK_L; x++) { const px=x*SCALE; dc.beginPath(); dc.moveTo(px,0); dc.lineTo(px,sh); dc.stroke(); }
+        // Items
+        trip.loads.forEach((ld, li) => {
+          const c   = TL.itemColorMap && TL.itemColorMap[ld.item] ? TL.itemColorMap[ld.item] : CHART_COLORS[li%CHART_COLORS.length];
+          const px  = ld.x*SCALE, pz = ld.y*SCALE;
+          const pw  = ld.w*SCALE, ph = ld.h*SCALE;
+          // Fill
+          dc.globalAlpha = 0.88;
+          dc.fillStyle = c;
+          dc.fillRect(px+1, pz+1, pw-2, ph-2);
+          // Border
+          dc.globalAlpha = 1;
+          dc.strokeStyle = '#1e3a5f'; dc.lineWidth = 1.2;
+          dc.strokeRect(px+1, pz+1, pw-2, ph-2);
+          // Label
+          if (pw > 28 && ph > 10) {
+            dc.fillStyle = '#fff';
+            dc.font = `bold ${Math.min(9, pw*0.14)}px Segoe UI,Arial`;
+            dc.textAlign = 'center'; dc.textBaseline = 'middle';
+            const short = ld.item.length>12 ? ld.item.slice(0,10)+'…' : ld.item;
+            dc.fillText(short, px+pw/2, pz+ph/2);
+          }
+        });
+        // Deck border
+        dc.strokeStyle = '#334155'; dc.lineWidth = 2;
+        dc.strokeRect(0,0,sw,sh);
+        // Dimension label: DECK_L
+        dc.fillStyle = '#475569'; dc.font = '8px Segoe UI,Arial';
+        dc.textAlign = 'center'; dc.textBaseline = 'top';
+        dc.fillText(`${DECK_L} m`, sw/2, 2);
+        dc.save(); dc.translate(4, sh/2); dc.rotate(-Math.PI/2);
+        dc.textAlign = 'center'; dc.fillText(`${DECK_W} m`, 0, 0); dc.restore();
+      }, 0);
+
+      // Item tags
+      const tagArea = document.createElement('div');
+      tagArea.style.cssText = 'padding:8px 14px 10px;display:flex;flex-wrap:wrap;gap:4px;';
+      const seen = {};
+      trip.loads.forEach((ld, li) => {
+        if (seen[ld.item]) return; seen[ld.item] = true;
+        const c = TL.itemColorMap && TL.itemColorMap[ld.item] ? TL.itemColorMap[ld.item] : CHART_COLORS[li%CHART_COLORS.length];
+        const cnt = trip.loads.filter(x=>x.item===ld.item).length;
+        const short = ld.item.length>18 ? ld.item.slice(0,16)+'…' : ld.item;
+        const tag = document.createElement('span');
+        tag.style.cssText = `font-size:9px;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;border-radius:4px;padding:2px 6px;`;
+        tag.textContent = `${short}${cnt>1?' ×'+cnt:''}`;
+        tagArea.appendChild(tag);
+      });
+      card.appendChild(tagArea);
+      grid.appendChild(card);
+    });
+
+    // ── Logistics summary ──────────────────────────────────
+    const logSec = document.createElement('div');
+    logSec.style.cssText = 'padding:0 20px 20px;';
+    logSec.innerHTML = `
+      <div style="background:#1e3a5f;border-radius:10px;padding:16px 20px;color:#fff;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px;color:#93c5fd;">Mobilization &amp; Logistics Analysis</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;">
+          ${[
+            ['🚛 Truck trips',nTrips],
+            ['📦 Total bundles',totalBdl],
+            ['📊 Avg utilisation',avgUtil+'%'],
+            ['⏱ Round trip','~'+roundTrip+' min'],
+            ['🔄 Trips/day',tripsPerDay+' (450 min ÷ '+roundTrip+' min)'],
+            ['📅 Working days',days+' day'+(days!==1?'s':'')],
+            ['🏗 Forklifts','2 × 5T'],
+            ['🚌 Trailers','1 × 12m flatbed'],
+          ].map(([l,v])=>`
+            <div style="background:rgba(255,255,255,.08);border-radius:6px;padding:8px 12px;">
+              <div style="font-size:11px;color:#93c5fd;">${l}</div>
+              <div style="font-size:14px;font-weight:700;margin-top:2px;">${v}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    TL.mount.appendChild(logSec);
   }
 
   function updateTLView(trips, pgInd) {
