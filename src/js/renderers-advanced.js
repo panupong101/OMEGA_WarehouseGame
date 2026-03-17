@@ -331,6 +331,18 @@
     resetBtn.addEventListener('click', () => resetThreeCamera());
     T.mount.appendChild(resetBtn);
 
+    // Zoom buttons — + / −
+    const zoomWrap = document.createElement('div');
+    zoomWrap.style.cssText = 'position:absolute;top:10px;left:128px;display:flex;gap:4px;';
+    [['＋', -1], ['－', 1]].forEach(([label, dir]) => {
+      const btn = document.createElement('button');
+      btn.style.cssText = 'background:rgba(255,255,255,.88);color:#1e293b;border:1px solid rgba(0,0,0,.2);border-radius:6px;padding:5px 11px;font:13px Segoe UI,Arial,sans-serif;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);line-height:1;';
+      btn.textContent = label;
+      btn.addEventListener('click', () => { T.r = Math.max(4, Math.min(220, T.r + dir * 6)); refreshCamera(); });
+      zoomWrap.appendChild(btn);
+    });
+    T.mount.appendChild(zoomWrap);
+
     // Status bar — light style
     T.statusBar = document.createElement('div');
     T.statusBar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;height:24px;background:rgba(255,255,255,.82);border-top:1px solid rgba(0,0,0,.1);display:flex;align-items:center;gap:18px;padding:0 14px;font:10px Segoe UI,Arial,sans-serif;color:#475569;';
@@ -1194,7 +1206,7 @@
     TL.mount.innerHTML = '';
     TL.mount.style.cssText = [
       'position:absolute;top:0;left:0;width:100%;height:100%;',
-      'display:none;overflow-y:auto;background:#f1f5f9;',
+      'overflow-y:auto;background:#f1f5f9;',
       'font-family:Segoe UI,Arial,sans-serif;'
     ].join('');
 
