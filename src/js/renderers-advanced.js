@@ -1064,6 +1064,361 @@
   }
 
   // ═══════════════════════════════════════════════════════════
+  // THREE.JS — 3D Truck Loading Simulator (EasyCargo-style)
+  // ═══════════════════════════════════════════════════════════
+
+  // Constants mirrored from main.js
+  const DECK_L = 12.0, DECK_W = 2.45, DECK_H_OFF = 1.35; // deck height off ground
+
+  const TL = {
+    scene: null, camera: null, renderer: null,
+    mount: null, sidebar: null, infoBar: null, canvasWrap: null,
+    objs: [], selectedTrip: 0,
+    drag: false, theta: -0.55, phi: 0.68, r: 16,
+    ds: { x: 0, y: 0 }, itemColorMap: {}
+  };
+
+  function initTL() {
+    const wrap = document.querySelector('.cv-wrap');
+    TL.mount = document.createElement('div');
+    TL.mount.id = 'tl-mount';
+    TL.mount.style.cssText = [
+      'position:absolute;top:0;left:0;width:100%;height:100%;display:none;',
+      'overflow:hidden;font-family:Segoe UI,Arial,sans-serif;background:#f0f4f8;'
+    ].join('');
+    wrap.appendChild(TL.mount);
+
+    // ── Left sidebar — trip list ─────────────────────────────
+    TL.sidebar = document.createElement('div');
+    TL.sidebar.style.cssText = [
+      'position:absolute;top:0;left:0;width:200px;height:100%;',
+      'background:#1e293b;overflow-y:auto;display:flex;flex-direction:column;'
+    ].join('');
+    TL.mount.appendChild(TL.sidebar);
+
+    // ── Right area: header + 3D canvas ──────────────────────
+    TL.infoBar = document.createElement('div');
+    TL.infoBar.style.cssText = [
+      'position:absolute;top:0;left:200px;right:0;height:52px;',
+      'background:#fff;border-bottom:1px solid #e2e8f0;',
+      'display:flex;align-items:center;padding:0 16px;gap:20px;',
+      'box-shadow:0 1px 4px rgba(0,0,0,.08);'
+    ].join('');
+    TL.mount.appendChild(TL.infoBar);
+
+    TL.canvasWrap = document.createElement('div');
+    TL.canvasWrap.style.cssText = 'position:absolute;top:52px;left:200px;right:0;bottom:0;overflow:hidden;';
+    TL.mount.appendChild(TL.canvasWrap);
+
+    // ── Three.js scene ───────────────────────────────────────
+    if (!window.THREE) return;
+    const cw = wrap.clientWidth - 200, ch = wrap.clientHeight - 52;
+    TL.scene    = new THREE.Scene();
+    TL.scene.background = new THREE.Color(0xecf2f9);
+    TL.scene.fog = new THREE.Fog(0xecf2f9, 60, 130);
+
+    TL.camera   = new THREE.PerspectiveCamera(42, Math.max(cw,1)/Math.max(ch,1), 0.1, 400);
+    TL.renderer = new THREE.WebGLRenderer({ antialias: true });
+    TL.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    TL.renderer.setSize(cw, ch);
+    TL.renderer.shadowMap.enabled = false;
+    TL.canvasWrap.appendChild(TL.renderer.domElement);
+
+    // Lighting — bright factory floor
+    TL.scene.add(new THREE.AmbientLight(0xffffff, 1.05));
+    const sun = new THREE.DirectionalLight(0xfff8f0, 0.8);
+    sun.position.set(20, 35, 15); TL.scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xd8eeff, 0.3);
+    fill.position.set(-15, 12, -10); TL.scene.add(fill);
+
+    // Floor: clean asphalt
+    const flr = new THREE.Mesh(new THREE.PlaneGeometry(300, 300),
+      new THREE.MeshLambertMaterial({ color: 0xdad6cf }));
+    flr.rotation.x = -Math.PI/2; flr.position.y = -0.01;
+    TL.scene.add(flr);
+    TL.scene.add(new THREE.GridHelper(300, 150, 0xccc8c0, 0xd4d0c8));
+
+    // Controls hint
+    const hint = document.createElement('div');
+    hint.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.8);color:#475569;border:1px solid #e2e8f0;border-radius:20px;padding:3px 14px;font-size:10px;pointer-events:none;white-space:nowrap;';
+    hint.textContent = '⟳ Left-drag: orbit  ·  Scroll: zoom  ·  Dbl-click: reset';
+    TL.canvasWrap.appendChild(hint);
+
+    // Orbit controls
+    const el = TL.renderer.domElement;
+    el.style.cursor = 'grab';
+    el.addEventListener('mousedown', e => { TL.drag=true; TL.ds={x:e.clientX,y:e.clientY}; el.style.cursor='grabbing'; });
+    el.addEventListener('mousemove', e => {
+      if (!TL.drag) return;
+      TL.theta += (e.clientX-TL.ds.x)*0.007;
+      TL.phi = Math.max(0.08, Math.min(1.45, TL.phi-(e.clientY-TL.ds.y)*0.007));
+      TL.ds = {x:e.clientX,y:e.clientY}; tlRefreshCam();
+    });
+    el.addEventListener('mouseup',    () => { TL.drag=false; el.style.cursor='grab'; });
+    el.addEventListener('mouseleave', () => { TL.drag=false; el.style.cursor='grab'; });
+    el.addEventListener('wheel', e => { TL.r=Math.max(4,Math.min(55,TL.r+e.deltaY*0.03)); tlRefreshCam(); }, {passive:true});
+    el.addEventListener('dblclick', () => { TL.theta=-0.55; TL.phi=0.68; TL.r=16; tlRefreshCam(); });
+
+    // Render loop
+    (function loop() { requestAnimationFrame(loop); if (TL.renderer) TL.renderer.render(TL.scene, TL.camera); })();
+  }
+
+  function tlRefreshCam() {
+    if (!TL.camera) return;
+    const cx = DECK_L/2, cy = DECK_H_OFF + 1, cz = DECK_W/2;
+    TL.camera.position.set(
+      cx + TL.r * Math.sin(TL.phi) * Math.cos(TL.theta),
+      DECK_H_OFF + TL.r * Math.cos(TL.phi),
+      cz + TL.r * Math.sin(TL.phi) * Math.sin(TL.theta)
+    );
+    TL.camera.lookAt(cx, cy, cz);
+  }
+
+  function clearTL3() { TL.objs.forEach(o => TL.scene.remove(o)); TL.objs = []; }
+  function addTL(obj) { TL.scene.add(obj); TL.objs.push(obj); }
+
+  function renderTL() {
+    if (!TL.mount) return;
+    const trips = (window.getCachedTruckTrips && window.items && window.items.length)
+      ? window.getCachedTruckTrips() : [];
+
+    // Build stable item→color map
+    TL.itemColorMap = {};
+    (window.items || []).forEach((it, i) => {
+      TL.itemColorMap[it.item] = CHART_COLORS[i % CHART_COLORS.length];
+    });
+
+    // ── Logistics summary ────────────────────────────────────
+    const nTrips     = trips.length;
+    const totalBdl   = (window.items||[]).reduce((s,it)=>s+it.bundles,0);
+    const roundTrip  = 95; // min
+    const tripsPerDay= 4;
+    const days       = Math.ceil(nTrips / tripsPerDay);
+    const avgUtil    = nTrips ? Math.round(trips.reduce((s,t)=>{
+      const ua=t.loads.reduce((ss,ld)=>ss+ld.w*ld.h,0);
+      return s+ua/(DECK_L*DECK_W)*100;
+    },0)/nTrips) : 0;
+
+    // ── Info bar ─────────────────────────────────────────────
+    TL.infoBar.innerHTML = `
+      <div style="font-size:14px;font-weight:700;color:#1e293b;white-space:nowrap;">🚛 Truck Loading Simulator</div>
+      <div style="width:1px;height:24px;background:#e2e8f0;"></div>
+      ${[
+        ['Trips',         nTrips,         ''],
+        ['Bundles',       totalBdl,        ''],
+        ['Avg Util.',     avgUtil+'%',     ''],
+        ['Working Days',  days,            ''],
+        ['Deck',          DECK_L+'×'+DECK_W+' m', ''],
+      ].map(([l,v])=>`
+        <div style="text-align:center;min-width:60px;">
+          <div style="font-size:16px;font-weight:700;color:#1e3a5f;line-height:1;">${v}</div>
+          <div style="font-size:9px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;">${l}</div>
+        </div>`).join('')}
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <button id="tl-prev" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;">◀</button>
+        <span id="tl-pgind" style="font-size:11px;color:#64748b;align-self:center;min-width:50px;text-align:center;">Trip 1/${nTrips}</span>
+        <button id="tl-next" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:4px 10px;cursor:pointer;font-size:11px;">▶</button>
+      </div>`;
+
+    const prevBtn = document.getElementById('tl-prev');
+    const nextBtn = document.getElementById('tl-next');
+    const pgInd   = document.getElementById('tl-pgind');
+    if (prevBtn) prevBtn.onclick = () => { TL.selectedTrip=Math.max(0,TL.selectedTrip-1); updateTLView(trips,pgInd); };
+    if (nextBtn) nextBtn.onclick = () => { TL.selectedTrip=Math.min(nTrips-1,TL.selectedTrip+1); updateTLView(trips,pgInd); };
+
+    // ── Sidebar: trip list ───────────────────────────────────
+    TL.sidebar.innerHTML = '';
+    const sHdr = document.createElement('div');
+    sHdr.style.cssText = 'padding:12px 10px 8px;color:#94a3b8;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid #334155;';
+    sHdr.textContent = `${nTrips} Trips · ${totalBdl} Bundles`;
+    TL.sidebar.appendChild(sHdr);
+
+    if (!nTrips) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:20px 10px;color:#64748b;font-size:11px;text-align:center;';
+      empty.textContent = 'Select a scenario first.';
+      TL.sidebar.appendChild(empty);
+    } else {
+      trips.forEach((trip, ti) => {
+        const util = Math.round(trip.loads.reduce((s,ld)=>s+ld.w*ld.h,0) / (DECK_L*DECK_W) * 100);
+        const uColor = util>=80?'#22c55e':util>=60?'#f59e0b':'#ef4444';
+        const usedVol = trip.loads.reduce((s,ld)=>s+ld.w*ld.h*(ld.sH||0.5),0);
+        const card = document.createElement('div');
+        card.style.cssText = [
+          `background:${ti===TL.selectedTrip?'#334155':'transparent'};`,
+          'padding:10px 10px 8px;border-bottom:1px solid #273447;cursor:pointer;',
+          'transition:background .15s;'
+        ].join('');
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+            <span style="color:#e2e8f0;font-size:11px;font-weight:700;">Trip ${ti+1}</span>
+            <span style="color:${uColor};font-size:10px;font-weight:700;">${util}%</span>
+          </div>
+          <div style="background:#1e293b;border-radius:3px;height:4px;margin-bottom:6px;overflow:hidden;">
+            <div style="background:${uColor};width:${util}%;height:100%;border-radius:3px;"></div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            ${[...new Set(trip.loads.map(ld=>ld.item))].slice(0,4).map(nm=>{
+              const c = TL.itemColorMap[nm] || '#64748b';
+              const short = nm.length>14 ? nm.slice(0,12)+'…' : nm;
+              return `<span style="font-size:8px;background:${c}33;color:${c};border:1px solid ${c}55;border-radius:3px;padding:1px 4px;">${short}</span>`;
+            }).join('')}
+          </div>
+          <div style="color:#64748b;font-size:9px;margin-top:4px;">${trip.loads.length} pcs · ${usedVol.toFixed(1)} m³</div>`;
+        card.onclick = () => {
+          TL.selectedTrip = ti;
+          if (pgInd) pgInd.textContent = `Trip ${ti+1}/${nTrips}`;
+          updateTLView(trips, pgInd);
+        };
+        TL.sidebar.appendChild(card);
+      });
+    }
+
+    // Draw first trip
+    if (trips.length) {
+      if (TL.selectedTrip >= trips.length) TL.selectedTrip = 0;
+      updateTLView(trips, pgInd);
+    } else {
+      clearTL3();
+    }
+  }
+
+  function updateTLView(trips, pgInd) {
+    if (!TL.scene) return;
+    if (pgInd) pgInd.textContent = `Trip ${TL.selectedTrip+1}/${trips.length}`;
+
+    // Highlight active trip card
+    Array.from(TL.sidebar.children).forEach((c, i) => {
+      if (i === 0) return; // header
+      c.style.background = (i-1 === TL.selectedTrip) ? '#334155' : 'transparent';
+    });
+
+    clearTL3();
+    const trip = trips[TL.selectedTrip];
+    if (!trip) return;
+
+    // ── Ground pad ───────────────────────────────────────────
+    const pad = new THREE.Mesh(
+      new THREE.BoxGeometry(DECK_L+6, 0.08, DECK_W+10),
+      new THREE.MeshLambertMaterial({ color: 0xc8c4bc })
+    );
+    pad.position.set(DECK_L/2, -0.04, DECK_W/2); addTL(pad);
+
+    // ── Truck chassis ────────────────────────────────────────
+    const chassisMat = new THREE.MeshLambertMaterial({ color: 0x1c2b3a });
+    // Main frame rails
+    [[DECK_L/2, DECK_H_OFF-0.32, 0.28],[DECK_L/2, DECK_H_OFF-0.32, DECK_W-0.28]].forEach(([x,y,z])=>{
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(DECK_L+0.6, 0.18, 0.22), chassisMat);
+      rail.position.set(x, y, z); addTL(rail);
+    });
+    // Cross-members every 2m
+    for (let xi=0; xi<=DECK_L; xi+=2) {
+      const xm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, DECK_W), chassisMat);
+      xm.position.set(xi, DECK_H_OFF-0.32, DECK_W/2); addTL(xm);
+    }
+
+    // ── Wheels ───────────────────────────────────────────────
+    const wheelMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+    const rimMat   = new THREE.MeshLambertMaterial({ color: 0xb0b8c4 });
+    [[0.9,0.28],[0.9,DECK_W-0.28],[DECK_L-0.9,0.28],[DECK_L-0.9,DECK_W-0.28],
+     [DECK_L-2.4,0.28],[DECK_L-2.4,DECK_W-0.28]].forEach(([wx,wz])=>{
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(0.46,0.46,0.26,16), wheelMat);
+      w.rotation.x = Math.PI/2; w.position.set(wx, 0.46, wz); addTL(w);
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.28,8), rimMat);
+      rim.rotation.x = Math.PI/2; rim.position.set(wx, 0.46, wz); addTL(rim);
+    });
+
+    // ── Cab ──────────────────────────────────────────────────
+    const cabMat    = new THREE.MeshLambertMaterial({ color: 0x1e3a5f });
+    const glassMat  = new THREE.MeshLambertMaterial({ color: 0x7dd3fc, transparent:true, opacity:.7 });
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.4, DECK_W+0.1), cabMat);
+    cab.position.set(-1.3, DECK_H_OFF+0.85, DECK_W/2); addTL(cab);
+    // Windshield
+    const ws = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, DECK_W-0.2), glassMat);
+    ws.position.set(-0.01, DECK_H_OFF+1.35, DECK_W/2); addTL(ws);
+    // Side windows
+    [[0.06,DECK_H_OFF+1.3,0.15],[0.06,DECK_H_OFF+1.3,DECK_W-0.15]].forEach(([x,y,z])=>{
+      const sw = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.65,0.06), glassMat);
+      sw.position.set(-1.0, y, z); addTL(sw);
+    });
+    // Front bumper + grill
+    const bump = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.42, DECK_W+0.15),
+      new THREE.MeshLambertMaterial({ color: 0x0f172a }));
+    bump.position.set(-2.72, DECK_H_OFF+0.21, DECK_W/2); addTL(bump);
+    // Exhaust pipe
+    const exh = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,1.8,8),
+      new THREE.MeshLambertMaterial({ color: 0x475569 }));
+    exh.position.set(-1.9, DECK_H_OFF+1.7, DECK_W+0.15); addTL(exh);
+
+    // ── Flatbed deck ─────────────────────────────────────────
+    const deckMat = new THREE.MeshLambertMaterial({ color: 0xc8bfa8 }); // timber planks
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(DECK_L, 0.14, DECK_W), deckMat);
+    deck.position.set(DECK_L/2, DECK_H_OFF, DECK_W/2); addTL(deck);
+
+    // Deck plank lines
+    const plankMat = new THREE.MeshLambertMaterial({ color: 0xb0a890, transparent:true, opacity:.6 });
+    for (let z=0; z<=DECK_W; z+=0.3) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(DECK_L,.02,.02),plankMat);
+      p.position.set(DECK_L/2, DECK_H_OFF+0.072, z); addTL(p);
+    }
+
+    // Side stake pockets / rails
+    const stakeMat = new THREE.MeshLambertMaterial({ color: 0x64748b });
+    [[DECK_L/2,DECK_H_OFF+0.22,0],[DECK_L/2,DECK_H_OFF+0.22,DECK_W]].forEach(([x,y,z])=>{
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(DECK_L+0.04,.14,.06),stakeMat);
+      rail.position.set(x,y,z); addTL(rail);
+    });
+    // Vertical stakes every ~2m
+    for (let sx=0; sx<=DECK_L; sx+=2) {
+      [[0],[DECK_W]].forEach(([sz])=>{
+        const st = new THREE.Mesh(new THREE.BoxGeometry(.06,.55,.06),stakeMat);
+        st.position.set(sx, DECK_H_OFF+0.35, sz); addTL(st);
+      });
+    }
+    // Rear gate
+    const gate = new THREE.Mesh(new THREE.BoxGeometry(.08, 0.55, DECK_W+0.1), stakeMat);
+    gate.position.set(DECK_L+0.04, DECK_H_OFF+0.35, DECK_W/2); addTL(gate);
+
+    // ── Items on deck ─────────────────────────────────────────
+    const ITEM_Y = DECK_H_OFF + 0.07;
+    trip.loads.forEach((ld, li) => {
+      const cssC  = TL.itemColorMap[ld.item] || CHART_COLORS[li % CHART_COLORS.length];
+      const hexC  = cssToHex(cssC);
+      const iH    = Math.max(0.12, ld.sH || 0.4);
+
+      // Item body — slight gap on each side
+      const gap   = 0.04;
+      const iMat  = new THREE.MeshLambertMaterial({ color: hexC });
+      const box   = new THREE.Mesh(new THREE.BoxGeometry(ld.w-gap, iH, ld.h-gap), iMat);
+      box.position.set(ld.x + ld.w/2, ITEM_Y + iH/2, ld.y + ld.h/2);
+      addTL(box);
+
+      // Top face lighter sheen
+      const topMat = new THREE.MeshLambertMaterial({ color: cssToHex(shadeColor(cssC, 1.18)) });
+      const top = new THREE.Mesh(new THREE.BoxGeometry(ld.w-gap, 0.02, ld.h-gap), topMat);
+      top.position.set(ld.x + ld.w/2, ITEM_Y + iH + 0.01, ld.y + ld.h/2);
+      addTL(top);
+    });
+
+    // ── Measurement markers along deck edge ───────────────────
+    const mrkMat = new THREE.MeshLambertMaterial({ color: 0xf97316 }); // orange
+    for (let xi=0; xi<=DECK_L; xi+=2) {
+      const mk = new THREE.Mesh(new THREE.BoxGeometry(.04,.32,.04), mrkMat);
+      mk.position.set(xi, DECK_H_OFF+0.16, -0.12); addTL(mk);
+    }
+
+    // ── Cinch strap lines across deck ────────────────────────
+    const strapMat = new THREE.MeshLambertMaterial({ color: 0xf59e0b, transparent:true, opacity:.7 });
+    const maxH = Math.max(...trip.loads.map(ld=>ld.sH||0.4), 0.4);
+    [DECK_L*0.25, DECK_L*0.5, DECK_L*0.75].forEach(sx => {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(.04, maxH+0.22, DECK_W+0.08), strapMat);
+      strap.position.set(sx, DECK_H_OFF+0.07+(maxH+0.22)/2-0.1, DECK_W/2); addTL(strap);
+    });
+
+    tlRefreshCam();
+  }
+
+  // ═══════════════════════════════════════════════════════════
   // TAB SWITCHER
   // ═══════════════════════════════════════════════════════════
 
@@ -1077,7 +1432,8 @@
     const pixi   = document.getElementById('pixi-mount');
     const bdMnt  = document.getElementById('bd-mount');
     const rptMnt = document.getElementById('rpt-mount');
-    [cvs, konva, three, pixi, bdMnt, rptMnt].forEach(el => el && (el.style.display = 'none'));
+    const tlMnt  = document.getElementById('tl-mount');
+    [cvs, konva, three, pixi, bdMnt, rptMnt, tlMnt].forEach(el => el && (el.style.display = 'none'));
 
     // Legend: show only for 2D
     manageLegend(tab);
@@ -1092,6 +1448,9 @@
     } else if (tab === 'fp' && pixi) {
       pixi.style.display = 'block';
       renderPixiFootprint();
+    } else if (tab === 'tl' && tlMnt) {
+      tlMnt.style.display = 'block';
+      renderTL();
     } else if (tab === 'bd' && bdMnt) {
       bdMnt.style.display = 'block';
       renderBD();
@@ -1113,6 +1472,7 @@
       if (window.Konva) { try { initKonva(); } catch(e) { console.warn('[Konva]',e); } }
       if (window.THREE) { try { initThree(); } catch(e) { console.warn('[Three]',e); } }
       if (window.PIXI)  { try { initPixi();  } catch(e) { console.warn('[PixiJS]',e); } }
+      if (window.THREE) { try { initTL();    } catch(e) { console.warn('[TL]',e); } }
       // BD and RPT always init (Chart.js check is inside render)
       try { initBD();  } catch(e) { console.warn('[BD]',e); }
       try { initRPT(); } catch(e) { console.warn('[RPT]',e); }
@@ -1133,6 +1493,7 @@
         if (currentTab === '2d')         { K._fitted=false; renderKonva(); }
         else if (currentTab === 'three') { buildThreeScene(); }
         else if (currentTab === 'fp')    { renderPixiFootprint(); }
+        else if (currentTab === 'tl')    { renderTL(); }
         else if (currentTab === 'bd')    { renderBD(); }
         else if (currentTab === 'rpt')   { renderRPT(); }
         else {
