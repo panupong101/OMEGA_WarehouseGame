@@ -1633,7 +1633,18 @@
       renderKonva();
     } else if (tab === 'three' && three) {
       three.style.display = 'block';
+      // Flash-of-old-scene guard: cover with opaque overlay, build, then fade out
+      let _cover = three.querySelector('._flash_cover');
+      if (!_cover) {
+        _cover = document.createElement('div');
+        _cover.className = '_flash_cover';
+        _cover.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:#ede9e0;z-index:99;pointer-events:none;transition:opacity 0.18s ease;';
+        three.appendChild(_cover);
+      }
+      _cover.style.opacity = '1';
       buildThreeScene();
+      // Fade out after scene is built
+      requestAnimationFrame(() => requestAnimationFrame(() => { _cover.style.opacity = '0'; }));
     } else if (tab === 'fp' && pixi) {
       pixi.style.display = 'block';
       renderPixiFootprint();
