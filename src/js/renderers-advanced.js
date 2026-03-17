@@ -1150,6 +1150,137 @@
     tblCard.appendChild(tbl);
     tblSec.appendChild(tblCard);
     RPT.mount.appendChild(tblSec);
+
+    // ═══════════════════════════════════════════════════════════
+    // RENTAL RECOMMENDATION SECTION — from 21-shipment analysis
+    // ═══════════════════════════════════════════════════════════
+    const SHIP_DATA = [
+      [1,11,200,368.44,47.6],[2,13,238,377.35,50.0],[3,14,279,533.74,49.1],
+      [4,14,303,334.20,21.2],[5,14,226,391.92,51.6],[6,14,277,382.27,50.0],
+      [7,14,257,434.98,41.6],[8,14,292,346.94,26.2],[9,13,221,402.68,57.6],
+      [10,14,253,354.17,39.7],[11,14,266,388.74,34.6],[12,14,311,368.00,30.6],
+      [13,14,256,357.02,43.5],[14,14,259,514.95,61.8],[15,14,291,392.22,34.6],
+      [16,14,305,374.18,36.7],[17,14,230,387.41,54.4],[18,14,266,396.07,35.7],
+      [19,14,265,443.06,51.0],[20,14,246,374.76,44.2],[21,14,213,402.91,68.4],
+    ];
+
+    const rentalSec = document.createElement('div');
+    rentalSec.style.cssText = 'padding:0 20px 32px;';
+
+    // ── Divider + section title ────────────────────────────
+    const rentalTitle = document.createElement('div');
+    rentalTitle.style.cssText = 'background:#1e3a5f;color:#fff;padding:12px 16px;border-radius:8px 8px 0 0;margin-top:8px;';
+    rentalTitle.innerHTML = `
+      <div style="font-size:13px;font-weight:700;letter-spacing:.5px;">🏭 WAREHOUSE RENTAL AREA RECOMMENDATION</div>
+      <div style="font-size:10px;color:#93c5fd;margin-top:2px;">Based on full analysis of 21 completed shipments (OMEGA-TLS-002)</div>`;
+    rentalSec.appendChild(rentalTitle);
+
+    const rentalBody = document.createElement('div');
+    rentalBody.style.cssText = 'background:#fff;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;border-top:none;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);';
+
+    // ── Big answer boxes ───────────────────────────────────
+    const answerRow = document.createElement('div');
+    answerRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;';
+    answerRow.innerHTML = `
+      <div style="background:#eff6ff;border:3px solid #2563eb;border-radius:8px;padding:16px;text-align:center;">
+        <div style="font-size:40px;font-weight:800;color:#2563eb;line-height:1;">600 m²</div>
+        <div style="font-size:10px;font-weight:700;color:#2563eb;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">★ Recommended Rental</div>
+        <div style="font-size:9px;color:#64748b;margin-top:4px;">Single shipment + 25% corridors + 20% safety</div>
+      </div>
+      <div style="background:#f0fdf4;border:3px solid #16a34a;border-radius:8px;padding:16px;text-align:center;">
+        <div style="font-size:40px;font-weight:800;color:#16a34a;line-height:1;">800 m²</div>
+        <div style="font-size:10px;font-weight:700;color:#16a34a;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">★ Safe Peak Rental</div>
+        <div style="font-size:9px;color:#64748b;margin-top:4px;">Two overlapping shipments + corridors + safety</div>
+      </div>`;
+    rentalBody.appendChild(answerRow);
+
+    // ── Key averages grid ──────────────────────────────────
+    const avgGrid = document.createElement('div');
+    avgGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:16px;';
+    [
+      { label:'Shipments Analysed', val:'21',     color:'#64748b', bg:'#f8fafc' },
+      { label:'Avg Floor Area',     val:'396.5 m²', color:'#2563eb', bg:'#eff6ff' },
+      { label:'Max Floor Area',     val:'533.7 m²', color:'#d97706', bg:'#fef3c7' },
+      { label:'Min Floor Area',     val:'334.2 m²', color:'#64748b', bg:'#f8fafc' },
+      { label:'Avg Containers',     val:'13.8',    color:'#64748b', bg:'#f8fafc' },
+      { label:'Avg Bundles / Ship', val:'260',     color:'#64748b', bg:'#f8fafc' },
+      { label:'95th Percentile',    val:'515 m²',  color:'#d97706', bg:'#fef3c7' },
+      { label:'Avg Long Parts %',   val:'44.3%',   color:'#64748b', bg:'#f8fafc' },
+    ].forEach(m => {
+      const c = document.createElement('div');
+      c.style.cssText = `background:${m.bg};border-radius:6px;padding:8px 10px;text-align:center;`;
+      c.innerHTML = `<div style="font-size:15px;font-weight:700;color:${m.color};">${m.val}</div>
+                     <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${m.label}</div>`;
+      avgGrid.appendChild(c);
+    });
+    rentalBody.appendChild(avgGrid);
+
+    // ── Per-shipment mini table ────────────────────────────
+    const tblTitle = document.createElement('div');
+    tblTitle.style.cssText = 'font-size:10px;font-weight:700;color:#1e3a5f;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;';
+    tblTitle.textContent = 'Per-Shipment Floor Area — All 21 Shipments';
+    rentalBody.appendChild(tblTitle);
+
+    const miniTbl = document.createElement('table');
+    miniTbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;';
+    const hdrCols = ['Ship #','Containers','Bundles','Floor Area (m²)','Long %'];
+    miniTbl.innerHTML = `<thead><tr style="background:#1e3a5f;color:#fff;">
+      ${hdrCols.map(h=>`<th style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.4px;text-align:center;">${h}</th>`).join('')}
+    </tr></thead><tbody>
+      ${SHIP_DATA.map(([s,c,b,f,lp],i)=>{
+        const hi = f > 430;
+        const bg = hi ? '#fef3c7' : (i%2===0 ? '#fff' : '#f8fafc');
+        const fc = hi ? '#b45309' : '#1e293b';
+        return `<tr style="border-bottom:1px solid #f1f5f9;background:${bg};">
+          <td style="padding:4px 8px;text-align:center;font-weight:700;color:#1e3a5f;">${s}</td>
+          <td style="padding:4px 8px;text-align:center;">${c}</td>
+          <td style="padding:4px 8px;text-align:center;">${b}</td>
+          <td style="padding:4px 8px;text-align:center;font-weight:${hi?700:500};color:${fc};">${f.toFixed(1)}</td>
+          <td style="padding:4px 8px;text-align:center;">${lp.toFixed(1)}%</td>
+        </tr>`;
+      }).join('')}
+      <tr style="background:#e0e7ff;font-weight:700;border-top:2px solid #6366f1;">
+        <td style="padding:5px 8px;text-align:center;color:#4338ca;">AVG</td>
+        <td style="padding:5px 8px;text-align:center;color:#4338ca;">13.8</td>
+        <td style="padding:5px 8px;text-align:center;color:#4338ca;">259.7</td>
+        <td style="padding:5px 8px;text-align:center;color:#4338ca;">396.5</td>
+        <td style="padding:5px 8px;text-align:center;color:#4338ca;">44.3%</td>
+      </tr>
+    </tbody>`;
+    rentalBody.appendChild(miniTbl);
+
+    // ── Decision guide ─────────────────────────────────────
+    const decTitle = document.createElement('div');
+    decTitle.style.cssText = 'font-size:10px;font-weight:700;color:#1e3a5f;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;';
+    decTitle.textContent = 'Rental Decision Guide';
+    rentalBody.appendChild(decTitle);
+
+    const decGrid = document.createElement('div');
+    decGrid.style.cssText = 'display:grid;gap:6px;';
+    [
+      { opt:'A — Minimum',       area:'480 m²', bg:'#f8fafc', ac:'#475569', desc:'Strict sequential delivery — each ship fully cleared before next.',    bc:'#cbd5e1' },
+      { opt:'B — Recommended ★', area:'600 m²', bg:'#f0fdf4', ac:'#16a34a', desc:'Normal ops — one shipment at a time. Covers 90% of all deliveries.',   bc:'#16a34a' },
+      { opt:'C — Safe Peak ★',   area:'800 m²', bg:'#eff6ff', ac:'#2563eb', desc:'Two overlapping shipments. Recommended if schedule compression likely.',bc:'#2563eb' },
+      { opt:'D — Absolute Max',  area:'1,260 m²',bg:'#fef2f2',ac:'#dc2626', desc:'Both largest ships (#3 + #14) on-site simultaneously. Extreme case.',  bc:'#dc2626' },
+    ].forEach(d => {
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:center;gap:10px;background:${d.bg};border:1.5px solid ${d.bc}44;border-radius:6px;padding:8px 12px;`;
+      row.innerHTML = `
+        <div style="font-weight:700;font-size:11px;color:${d.ac};min-width:130px;">${d.opt}</div>
+        <div style="font-size:10px;color:#475569;flex:1;">${d.desc}</div>
+        <div style="font-size:16px;font-weight:800;color:${d.ac};white-space:nowrap;">${d.area}</div>`;
+      decGrid.appendChild(row);
+    });
+    rentalBody.appendChild(decGrid);
+
+    // ── Formula note ───────────────────────────────────────
+    const formula = document.createElement('div');
+    formula.style.cssText = 'margin-top:14px;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:10px 14px;font-size:10px;color:#1e3a5f;';
+    formula.innerHTML = `<strong>Formula:</strong> Rental Area = Material Floor Area × 1.25 <span style="color:#64748b;">(corridors)</span> × 1.20 <span style="color:#64748b;">(safety buffer)</span>`;
+    rentalBody.appendChild(formula);
+
+    rentalSec.appendChild(rentalBody);
+    RPT.mount.appendChild(rentalSec);
   }
 
   // ═══════════════════════════════════════════════════════════
