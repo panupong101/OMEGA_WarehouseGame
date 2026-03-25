@@ -856,6 +856,37 @@
       `;
       card.appendChild(cHdr);
 
+      // ── All packed items (from sn_contents) ──────────────────
+      const snc = it.sn_contents || {};
+      const sncKeys = Object.keys(snc);
+      // Collect ALL unique item codes across every SN in this item group
+      const allItemNames = [];
+      const seenItems = new Set();
+      sncKeys.forEach(k => {
+        (snc[k] || []).forEach(e => {
+          if (e.item && !seenItems.has(e.item)) {
+            seenItems.add(e.item);
+            allItemNames.push({ item: e.item, desc: e.desc || '', qty: e.qty || 0 });
+          }
+        });
+      });
+      if (allItemNames.length > 1) {
+        // Multiple items packed in one bundle — show them all
+        const contentsDiv = document.createElement('div');
+        contentsDiv.style.cssText = 'padding:6px 12px 4px;border-bottom:1px solid #f1f5f9;background:#fafbfc;';
+        let cHtml = `<div style="font-size:8px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Packed Items (${allItemNames.length})</div>`;
+        allItemNames.forEach((n, idx) => {
+          const isBold = idx === 0;
+          cHtml += `<div style="display:flex;align-items:baseline;gap:5px;padding:1px 0;">
+            <span style="font-size:8.5px;color:${color};flex-shrink:0;">▸</span>
+            <span style="font-size:9.5px;font-weight:${isBold?'700':'500'};color:${isBold?'#1e293b':'#475569'};line-height:1.3;">${n.item}</span>
+            ${n.qty ? `<span style="font-size:8.5px;color:#94a3b8;margin-left:auto;flex-shrink:0;">×${n.qty.toLocaleString()}</span>` : ''}
+          </div>`;
+        });
+        contentsDiv.innerHTML = cHtml;
+        card.appendChild(contentsDiv);
+      }
+
       // ── Derived values ──────────────────────────────────────
       const floorPos    = it.floor_pos || 1;
       const actualStack = Math.ceil(it.bundles / floorPos);   // real stacks in use
@@ -863,8 +894,6 @@
 
       // pcs per bundle — read from sn_contents
       let pcsPerBndl = 0, totalPcs = 0;
-      const snc = it.sn_contents || {};
-      const sncKeys = Object.keys(snc);
       if (sncKeys.length) {
         let sumQty = 0;
         sncKeys.forEach(k => { (snc[k]||[]).forEach(e => { sumQty += (e.qty||0); }); });
