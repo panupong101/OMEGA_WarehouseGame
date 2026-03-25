@@ -862,9 +862,10 @@
       // Collect ALL unique item codes across every SN in this item group
       const allItemNames = [];
       const seenItems = new Set();
+      const isProjCode = s => /^\d{7}-\d+/.test(String(s||'').trim());
       sncKeys.forEach(k => {
         (snc[k] || []).forEach(e => {
-          if (e.item && !seenItems.has(e.item)) {
+          if (e.item && !seenItems.has(e.item) && !isProjCode(e.item)) {
             seenItems.add(e.item);
             allItemNames.push({ item: e.item, desc: e.desc || '', qty: e.qty || 0 });
           }
