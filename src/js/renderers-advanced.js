@@ -1249,51 +1249,28 @@
     tblSec.appendChild(tblCard);
     RPT.mount.appendChild(tblSec);
 
-    // ═══════════════════════════════════════════════════════════
-    // RENTAL RECOMMENDATION SECTION — dynamic from WH_DATA
-    // ═══════════════════════════════════════════════════════════
-
-    // ── Compute per-shipment stats from WH_DATA ────────────
-    const SHIP_DATA = ships.map(s => {
-      let totalBndl = 0, totalSqm2 = 0, longSqm = 0;
-      s.containers.forEach(c => {
-        c.items.forEach(it => {
-          totalBndl += it.bundles || 0;
-          totalSqm2 += it.sqm || 0;
-          if (it.is_long) longSqm += it.sqm || 0;
-        });
+    // ── Spotlight card: how does this selection compare vs fleet avg ──
+    const ships2 = window.ships || [];
+    if (its.length && (_sc === 'container' || _sc === 'shipment') && ships2.length) {
+      // Compute fleet-wide avg/max for the comparison bar
+      let _fleetSqm = 0;
+      let _fleetMax = 0;
+      ships2.forEach(s => {
+        let ss = 0;
+        s.containers.forEach(c => c.items.forEach(it => { ss += it.sqm || 0; }));
+        _fleetSqm += ss;
+        if (ss > _fleetMax) _fleetMax = ss;
       });
-      const longPct = totalSqm2 > 0 ? (longSqm / totalSqm2 * 100) : 0;
-      return { id: s.id, conts: s.containers.length, bndl: totalBndl, sqm: totalSqm2, longPct };
-    });
-
-    const avgSqm   = SHIP_DATA.reduce((s,r)=>s+r.sqm,0) / (SHIP_DATA.length||1);
-    const maxSqm   = Math.max(...SHIP_DATA.map(r=>r.sqm));
-    const minSqm   = Math.min(...SHIP_DATA.map(r=>r.sqm));
-    const avgConts = SHIP_DATA.reduce((s,r)=>s+r.conts,0) / (SHIP_DATA.length||1);
-    const avgBndl  = SHIP_DATA.reduce((s,r)=>s+r.bndl,0) / (SHIP_DATA.length||1);
-    const avgLong  = SHIP_DATA.reduce((s,r)=>s+r.longPct,0) / (SHIP_DATA.length||1);
-    const sorted95 = [...SHIP_DATA].sort((a,b)=>a.sqm-b.sqm);
-    const pct95    = sorted95[Math.floor(sorted95.length * 0.95)] || sorted95[sorted95.length-1];
-    const maxTwo   = [...SHIP_DATA].sort((a,b)=>b.sqm-a.sqm).slice(0,2);
-    const absMax   = maxTwo.reduce((s,r)=>s+r.sqm,0);
-
-    const recRental  = Math.ceil(maxSqm * 1.25 * 1.20 / 50) * 50;
-    const peakRental = Math.ceil((maxTwo[0]?.sqm||0 + (maxTwo[1]?.sqm||0)) * 1.25 * 1.20 / 50) * 50;
-
-    // ── Current selection floor area ───────────────────────
-    const selSqm = its.reduce((s,it)=>s+(it.sqm||0),0);
-    const selRec = selSqm * 1.25 * 1.20;
-
-    // ── Spotlight card: how does this selection compare ────
-    if (its.length && (_sc === 'container' || _sc === 'shipment')) {
+      const _fleetAvg = _fleetSqm / (ships2.length || 1);
+      const selSqm2 = its.reduce((s,it)=>s+(it.sqm||0),0);
+      const selRec2 = selSqm2 * 1.25 * 1.20;
+      const pctOfAvg2 = ((_fleetAvg > 0) ? (selSqm2 / _fleetAvg * 100) : 0).toFixed(0);
+      const vsCopy2 = selSqm2 > _fleetAvg
+        ? `<span style="color:#dc2626;font-weight:700;">+${(selSqm2-_fleetAvg).toFixed(1)} m² above fleet avg</span>`
+        : `<span style="color:#16a34a;font-weight:700;">${(_fleetAvg-selSqm2).toFixed(1)} m² below fleet avg</span>`;
       const spotSec = document.createElement('div');
       spotSec.style.cssText = 'padding:0 20px 16px;';
       const spotCard = document.createElement('div');
-      const pctOfAvg = ((selSqm / avgSqm) * 100).toFixed(0);
-      const vsCopy = selSqm > avgSqm
-        ? `<span style="color:#dc2626;font-weight:700;">+${(selSqm-avgSqm).toFixed(1)} m² above avg</span>`
-        : `<span style="color:#16a34a;font-weight:700;">${(avgSqm-selSqm).toFixed(1)} m² below avg</span>`;
       spotCard.style.cssText = 'background:#fff;border-radius:8px;border:2px solid #CC0000;padding:14px 16px;box-shadow:0 2px 8px rgba(204,0,0,.1);';
       spotCard.innerHTML = `
         <div style="font-size:10px;font-weight:700;color:#CC0000;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;">
@@ -1301,163 +1278,219 @@
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
           <div style="text-align:center;background:#fff5f5;border-radius:6px;padding:10px 16px;border:1px solid #fecaca;">
-            <div style="font-size:32px;font-weight:800;color:#CC0000;line-height:1;">${selSqm.toFixed(1)}<span style="font-size:14px;"> m²</span></div>
+            <div style="font-size:32px;font-weight:800;color:#CC0000;line-height:1;">${selSqm2.toFixed(1)}<span style="font-size:14px;"> m²</span></div>
             <div style="font-size:9px;color:#94a3b8;margin-top:2px;text-transform:uppercase;">Material Floor Area</div>
           </div>
           <div style="text-align:center;background:#f0fdf4;border-radius:6px;padding:10px 16px;border:1px solid #bbf7d0;">
-            <div style="font-size:28px;font-weight:800;color:#16a34a;line-height:1;">${selRec.toFixed(0)}<span style="font-size:13px;"> m²</span></div>
+            <div style="font-size:28px;font-weight:800;color:#16a34a;line-height:1;">${selRec2.toFixed(0)}<span style="font-size:13px;"> m²</span></div>
             <div style="font-size:9px;color:#94a3b8;margin-top:2px;text-transform:uppercase;">Rental Needed (×1.5)</div>
           </div>
           <div style="flex:1;min-width:160px;">
-            <div style="font-size:11px;color:#475569;margin-bottom:6px;">${vsCopy} · ${pctOfAvg}% of dataset avg</div>
+            <div style="font-size:11px;color:#475569;margin-bottom:6px;">${vsCopy2} · ${pctOfAvg2}% of fleet avg</div>
             <div style="background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;">
-              <div style="height:8px;border-radius:4px;background:${selSqm>avgSqm?'#CC0000':'#16a34a'};width:${Math.min(100,(selSqm/maxSqm*100)).toFixed(1)}%;transition:width .4s;"></div>
+              <div style="height:8px;border-radius:4px;background:${selSqm2>_fleetAvg?'#CC0000':'#16a34a'};width:${Math.min(100,(_fleetMax>0?selSqm2/_fleetMax*100:0)).toFixed(1)}%;transition:width .4s;"></div>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:9px;color:#94a3b8;margin-top:3px;">
-              <span>0</span><span>avg ${avgSqm.toFixed(0)}</span><span>max ${maxSqm.toFixed(0)}</span>
+              <span>0</span><span>avg ${_fleetAvg.toFixed(0)}</span><span>max ${_fleetMax.toFixed(0)}</span>
             </div>
           </div>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:#64748b;">
+          See the <strong style="color:#1e3a5f;">🏭 Fleet Summary</strong> tab for full rental recommendation across all ${ships2.length} shipments.
         </div>`;
       spotSec.appendChild(spotCard);
       RPT.mount.appendChild(spotSec);
     }
+  }
 
-    const rentalSec = document.createElement('div');
-    rentalSec.style.cssText = 'padding:0 20px 32px;';
+  // ═══════════════════════════════════════════════════════════
+  // FLEET SUMMARY TAB — all-shipments rental recommendation
+  // ═══════════════════════════════════════════════════════════
 
-    // ── Section title ──────────────────────────────────────
-    const rentalTitle = document.createElement('div');
-    rentalTitle.style.cssText = 'background:#1e3a5f;color:#fff;padding:12px 16px;border-radius:8px 8px 0 0;margin-top:8px;';
-    rentalTitle.innerHTML = `
-      <div style="font-size:13px;font-weight:700;letter-spacing:.5px;">🏭 WAREHOUSE RENTAL AREA RECOMMENDATION</div>
-      <div style="font-size:10px;color:#93c5fd;margin-top:2px;">Based on all ${SHIP_DATA.length} shipments in WH_DATA (live calculation)</div>`;
-    rentalSec.appendChild(rentalTitle);
+  const SUM = { mount: null };
 
-    const rentalBody = document.createElement('div');
-    rentalBody.style.cssText = 'background:#fff;border-radius:0 0 8px 8px;border:1px solid #e2e8f0;border-top:none;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);';
+  function initSUM() {
+    const wrap = document.querySelector('.cv-wrap');
+    SUM.mount = document.createElement('div');
+    SUM.mount.id = 'sum-mount';
+    SUM.mount.style.cssText = [
+      'position:absolute;top:0;left:0;width:100%;height:100%;',
+      'display:none;overflow-y:auto;background:#f1f5f9;',
+      'font-family:Segoe UI,Arial,sans-serif;'
+    ].join('');
+    wrap.appendChild(SUM.mount);
+  }
+
+  function renderSUM() {
+    if (!SUM.mount) return;
+    SUM.mount.innerHTML = '';
+    const ships = window.ships || [];
+
+    // ── Header ──────────────────────────────────────────────
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'background:#1e3a5f;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;';
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    hdr.innerHTML = `
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:15px;font-weight:700;">🏭 Fleet Summary — Warehouse Rental Recommendation</div>
+        <div style="font-size:11px;color:#93c5fd;margin-top:3px;font-weight:600;">All ${ships.length} Shipments · Live Calculation from WH_DATA</div>
+      </div>
+      <div style="font-size:10px;color:#93c5fd;">Generated: ${dateStr}</div>
+    `;
+    SUM.mount.appendChild(hdr);
+
+    if (!ships.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'text-align:center;padding:60px;color:#94a3b8;font-size:14px;';
+      empty.textContent = 'No shipment data loaded.';
+      SUM.mount.appendChild(empty);
+      return;
+    }
+
+    // ── Compute per-shipment stats ──────────────────────────
+    const SHIP_DATA = ships.map(s => {
+      let totalBndl = 0, totalSqm = 0, longSqm = 0;
+      s.containers.forEach(c => {
+        c.items.forEach(it => {
+          totalBndl += it.bundles || 0;
+          totalSqm  += it.sqm    || 0;
+          if (it.is_long) longSqm += it.sqm || 0;
+        });
+      });
+      const longPct = totalSqm > 0 ? (longSqm / totalSqm * 100) : 0;
+      return { id: s.id, conts: s.containers.length, bndl: totalBndl, sqm: totalSqm, longPct };
+    });
+
+    const avgSqm   = SHIP_DATA.reduce((s,r)=>s+r.sqm,0)  / (SHIP_DATA.length||1);
+    const maxSqm   = Math.max(...SHIP_DATA.map(r=>r.sqm));
+    const minSqm   = Math.min(...SHIP_DATA.map(r=>r.sqm));
+    const avgConts = SHIP_DATA.reduce((s,r)=>s+r.conts,0) / (SHIP_DATA.length||1);
+    const avgBndl  = SHIP_DATA.reduce((s,r)=>s+r.bndl,0)  / (SHIP_DATA.length||1);
+    const avgLong  = SHIP_DATA.reduce((s,r)=>s+r.longPct,0)/ (SHIP_DATA.length||1);
+    const sorted95 = [...SHIP_DATA].sort((a,b)=>a.sqm-b.sqm);
+    const pct95    = sorted95[Math.floor(sorted95.length * 0.95)] || sorted95[sorted95.length-1];
+    const maxTwo   = [...SHIP_DATA].sort((a,b)=>b.sqm-a.sqm).slice(0,2);
+    const absMax   = maxTwo.reduce((s,r)=>s+r.sqm,0);
+
+    const recRental  = Math.ceil(maxSqm * 1.25 * 1.20 / 50) * 50;
+    const peakRental = Math.ceil(((maxTwo[0]?.sqm||0) + (maxTwo[1]?.sqm||0)) * 1.25 * 1.20 / 50) * 50;
+
+    const bodyWrap = document.createElement('div');
+    bodyWrap.style.cssText = 'padding:16px 20px 32px;';
+    SUM.mount.appendChild(bodyWrap);
 
     // ── Big answer boxes ───────────────────────────────────
     const answerRow = document.createElement('div');
     answerRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;';
     answerRow.innerHTML = `
-      <div style="background:#eff6ff;border:3px solid #2563eb;border-radius:8px;padding:16px;text-align:center;">
-        <div style="font-size:40px;font-weight:800;color:#2563eb;line-height:1;">${recRental} m²</div>
-        <div style="font-size:10px;font-weight:700;color:#2563eb;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">★ Recommended Rental</div>
-        <div style="font-size:9px;color:#64748b;margin-top:4px;">Largest single shipment × 1.25 corridors × 1.20 safety</div>
+      <div style="background:#eff6ff;border:3px solid #2563eb;border-radius:8px;padding:20px;text-align:center;">
+        <div style="font-size:48px;font-weight:800;color:#2563eb;line-height:1;">${recRental} m²</div>
+        <div style="font-size:11px;font-weight:700;color:#2563eb;margin-top:6px;text-transform:uppercase;letter-spacing:.5px;">★ Recommended Rental</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">Largest single shipment × 1.25 corridors × 1.20 safety</div>
       </div>
-      <div style="background:#f0fdf4;border:3px solid #16a34a;border-radius:8px;padding:16px;text-align:center;">
-        <div style="font-size:40px;font-weight:800;color:#16a34a;line-height:1;">${peakRental} m²</div>
-        <div style="font-size:10px;font-weight:700;color:#16a34a;margin-top:4px;text-transform:uppercase;letter-spacing:.5px;">★ Safe Peak Rental</div>
-        <div style="font-size:9px;color:#64748b;margin-top:4px;">Top 2 shipments overlapping × 1.25 × 1.20</div>
+      <div style="background:#f0fdf4;border:3px solid #16a34a;border-radius:8px;padding:20px;text-align:center;">
+        <div style="font-size:48px;font-weight:800;color:#16a34a;line-height:1;">${peakRental} m²</div>
+        <div style="font-size:11px;font-weight:700;color:#16a34a;margin-top:6px;text-transform:uppercase;letter-spacing:.5px;">★ Safe Peak Rental</div>
+        <div style="font-size:10px;color:#64748b;margin-top:4px;">Top 2 shipments overlapping × 1.25 × 1.20</div>
       </div>`;
-    rentalBody.appendChild(answerRow);
+    bodyWrap.appendChild(answerRow);
 
     // ── Key averages grid ──────────────────────────────────
     const avgGrid = document.createElement('div');
     avgGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:16px;';
     [
-      { label:'Shipments in Data',  val: SHIP_DATA.length,           color:'#64748b', bg:'#f8fafc' },
-      { label:'Avg Floor Area',     val: avgSqm.toFixed(1)+' m²',    color:'#2563eb', bg:'#eff6ff' },
-      { label:'Max Floor Area',     val: maxSqm.toFixed(1)+' m²',    color:'#d97706', bg:'#fef3c7' },
-      { label:'Min Floor Area',     val: minSqm.toFixed(1)+' m²',    color:'#64748b', bg:'#f8fafc' },
-      { label:'Avg Containers',     val: avgConts.toFixed(1),         color:'#64748b', bg:'#f8fafc' },
-      { label:'Avg Bundles / Ship', val: Math.round(avgBndl),         color:'#64748b', bg:'#f8fafc' },
-      { label:'95th Percentile',    val: (pct95?.sqm||0).toFixed(0)+' m²', color:'#d97706', bg:'#fef3c7' },
-      { label:'Avg Long Parts %',   val: avgLong.toFixed(1)+'%',      color:'#64748b', bg:'#f8fafc' },
+      { label:'Shipments in Data',  val: SHIP_DATA.length,                color:'#64748b', bg:'#f8fafc' },
+      { label:'Avg Floor Area',     val: avgSqm.toFixed(1)+' m²',         color:'#2563eb', bg:'#eff6ff' },
+      { label:'Max Floor Area',     val: maxSqm.toFixed(1)+' m²',         color:'#d97706', bg:'#fef3c7' },
+      { label:'Min Floor Area',     val: minSqm.toFixed(1)+' m²',         color:'#64748b', bg:'#f8fafc' },
+      { label:'Avg Containers',     val: avgConts.toFixed(1),              color:'#64748b', bg:'#f8fafc' },
+      { label:'Avg Bundles / Ship', val: Math.round(avgBndl),              color:'#64748b', bg:'#f8fafc' },
+      { label:'95th Percentile',    val: (pct95?.sqm||0).toFixed(0)+' m²',color:'#d97706', bg:'#fef3c7' },
+      { label:'Avg Long Parts %',   val: avgLong.toFixed(1)+'%',           color:'#64748b', bg:'#f8fafc' },
     ].forEach(m => {
       const c = document.createElement('div');
-      c.style.cssText = `background:${m.bg};border-radius:6px;padding:8px 10px;text-align:center;`;
-      c.innerHTML = `<div style="font-size:15px;font-weight:700;color:${m.color};">${m.val}</div>
+      c.style.cssText = `background:${m.bg};border-radius:6px;padding:10px 12px;text-align:center;`;
+      c.innerHTML = `<div style="font-size:17px;font-weight:700;color:${m.color};">${m.val}</div>
                      <div style="font-size:9px;color:#94a3b8;margin-top:2px;">${m.label}</div>`;
       avgGrid.appendChild(c);
     });
-    rentalBody.appendChild(avgGrid);
+    bodyWrap.appendChild(avgGrid);
 
-    // ── Per-shipment mini table — fully dynamic ────────────
-    const tblTitle = document.createElement('div');
-    tblTitle.style.cssText = 'font-size:10px;font-weight:700;color:#1e3a5f;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;';
-    tblTitle.textContent = `Per-Shipment Floor Area — All ${SHIP_DATA.length} Shipments`;
-    rentalBody.appendChild(tblTitle);
+    // ── Per-shipment table ─────────────────────────────────
+    const tblTitleEl = document.createElement('div');
+    tblTitleEl.style.cssText = 'font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;';
+    tblTitleEl.textContent = `Per-Shipment Floor Area — All ${SHIP_DATA.length} Shipments`;
+    bodyWrap.appendChild(tblTitleEl);
 
     const miniTbl = document.createElement('table');
-    miniTbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;';
+    miniTbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:10px;margin-bottom:16px;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07);';
     const hdrCols = ['Ship #','Containers','Bundles','Floor Area (m²)','Long %','Rental Est.'];
     miniTbl.innerHTML = `<thead><tr style="background:#1e3a5f;color:#fff;">
-      ${hdrCols.map(h=>`<th style="padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.4px;text-align:center;">${h}</th>`).join('')}
+      ${hdrCols.map(h=>`<th style="padding:7px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.4px;text-align:center;">${h}</th>`).join('')}
     </tr></thead>`;
-    const tbody = document.createElement('tbody');
+    const tblBody = document.createElement('tbody');
     SHIP_DATA.forEach((r, i) => {
-      const isSelected = (_sc === 'shipment' && selShipObj && selShipObj.id === r.id);
       const hi = r.sqm > avgSqm * 1.2;
       let bg = i%2===0 ? '#fff' : '#f8fafc';
       let fc = '#1e293b';
-      let rowStyle = '';
-      if (isSelected) {
-        bg = '#fff5f5'; rowStyle = 'outline:2px solid #CC0000;'; fc = '#CC0000';
-      } else if (hi) {
-        bg = '#fef3c7'; fc = '#b45309';
-      }
+      if (hi) { bg = '#fef3c7'; fc = '#b45309'; }
       const rental = (r.sqm * 1.25 * 1.20).toFixed(0);
       const tr = document.createElement('tr');
-      tr.style.cssText = `border-bottom:1px solid #f1f5f9;background:${bg};${rowStyle}`;
+      tr.style.cssText = `border-bottom:1px solid #f1f5f9;background:${bg};`;
       tr.innerHTML = `
-        <td style="padding:4px 8px;text-align:center;font-weight:700;color:${isSelected?'#CC0000':'#1e3a5f'};">
-          ${r.id}${isSelected?' ◀':''}
-        </td>
-        <td style="padding:4px 8px;text-align:center;">${r.conts}</td>
-        <td style="padding:4px 8px;text-align:center;">${r.bndl}</td>
-        <td style="padding:4px 8px;text-align:center;font-weight:${hi||isSelected?700:500};color:${fc};">${r.sqm.toFixed(1)}</td>
-        <td style="padding:4px 8px;text-align:center;">${r.longPct.toFixed(1)}%</td>
-        <td style="padding:4px 8px;text-align:center;color:#2563eb;font-weight:600;">~${rental} m²</td>`;
-      tbody.appendChild(tr);
+        <td style="padding:5px 10px;text-align:center;font-weight:700;color:#1e3a5f;">${r.id}</td>
+        <td style="padding:5px 10px;text-align:center;">${r.conts}</td>
+        <td style="padding:5px 10px;text-align:center;">${r.bndl}</td>
+        <td style="padding:5px 10px;text-align:center;font-weight:${hi?700:500};color:${fc};">${r.sqm.toFixed(1)}</td>
+        <td style="padding:5px 10px;text-align:center;">${r.longPct.toFixed(1)}%</td>
+        <td style="padding:5px 10px;text-align:center;color:#2563eb;font-weight:600;">~${rental} m²</td>`;
+      tblBody.appendChild(tr);
     });
     // Average row
     const avgRow = document.createElement('tr');
     avgRow.style.cssText = 'background:#e0e7ff;font-weight:700;border-top:2px solid #6366f1;';
     avgRow.innerHTML = `
-      <td style="padding:5px 8px;text-align:center;color:#4338ca;">AVG</td>
-      <td style="padding:5px 8px;text-align:center;color:#4338ca;">${avgConts.toFixed(1)}</td>
-      <td style="padding:5px 8px;text-align:center;color:#4338ca;">${Math.round(avgBndl)}</td>
-      <td style="padding:5px 8px;text-align:center;color:#4338ca;">${avgSqm.toFixed(1)}</td>
-      <td style="padding:5px 8px;text-align:center;color:#4338ca;">${avgLong.toFixed(1)}%</td>
-      <td style="padding:5px 8px;text-align:center;color:#4338ca;">~${(avgSqm*1.25*1.20).toFixed(0)} m²</td>`;
-    tbody.appendChild(avgRow);
-    miniTbl.appendChild(tbody);
-    rentalBody.appendChild(miniTbl);
+      <td style="padding:6px 10px;text-align:center;color:#4338ca;">AVG</td>
+      <td style="padding:6px 10px;text-align:center;color:#4338ca;">${avgConts.toFixed(1)}</td>
+      <td style="padding:6px 10px;text-align:center;color:#4338ca;">${Math.round(avgBndl)}</td>
+      <td style="padding:6px 10px;text-align:center;color:#4338ca;">${avgSqm.toFixed(1)}</td>
+      <td style="padding:6px 10px;text-align:center;color:#4338ca;">${avgLong.toFixed(1)}%</td>
+      <td style="padding:6px 10px;text-align:center;color:#4338ca;">~${(avgSqm*1.25*1.20).toFixed(0)} m²</td>`;
+    tblBody.appendChild(avgRow);
+    miniTbl.appendChild(tblBody);
+    bodyWrap.appendChild(miniTbl);
 
     // ── Decision guide ─────────────────────────────────────
-    const decTitle = document.createElement('div');
-    decTitle.style.cssText = 'font-size:10px;font-weight:700;color:#1e3a5f;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;';
-    decTitle.textContent = 'Rental Decision Guide';
-    rentalBody.appendChild(decTitle);
+    const decTitleEl = document.createElement('div');
+    decTitleEl.style.cssText = 'font-size:11px;font-weight:700;color:#1e3a5f;letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;';
+    decTitleEl.textContent = 'Rental Decision Guide';
+    bodyWrap.appendChild(decTitleEl);
 
     const decGrid = document.createElement('div');
-    decGrid.style.cssText = 'display:grid;gap:6px;';
+    decGrid.style.cssText = 'display:grid;gap:8px;margin-bottom:16px;';
     const biggestTwo = maxTwo.map(r=>`Ship ${r.id}`).join(' + ');
     [
-      { opt:'A — Minimum',       area:`${Math.ceil(minSqm*1.25*1.20/50)*50} m²`,  bg:'#f8fafc', ac:'#475569', desc:'Strict sequential delivery — each ship fully cleared before next.',    bc:'#cbd5e1' },
-      { opt:'B — Recommended ★', area:`${recRental} m²`,                           bg:'#f0fdf4', ac:'#16a34a', desc:`Largest single shipment (${maxSqm.toFixed(0)} m²) + corridors + safety.`, bc:'#16a34a' },
-      { opt:'C — Safe Peak ★',   area:`${peakRental} m²`,                          bg:'#eff6ff', ac:'#2563eb', desc:`Two largest overlapping (${biggestTwo}). Recommended if schedule compresses.`, bc:'#2563eb' },
-      { opt:'D — Absolute Max',  area:`${Math.ceil(absMax*1.25*1.20/50)*50} m²`,  bg:'#fef2f2', ac:'#dc2626', desc:`All-time peak: ${biggestTwo} on-site simultaneously. Extreme case.`,  bc:'#dc2626' },
+      { opt:'A — Minimum',       area:`${Math.ceil(minSqm*1.25*1.20/50)*50} m²`,  bg:'#f8fafc', ac:'#475569', desc:'Strict sequential delivery — each ship fully cleared before next.',                                    bc:'#cbd5e1' },
+      { opt:'B — Recommended ★', area:`${recRental} m²`,                           bg:'#f0fdf4', ac:'#16a34a', desc:`Largest single shipment (${maxSqm.toFixed(0)} m²) + corridors + safety. Best for normal schedule.`,  bc:'#16a34a' },
+      { opt:'C — Safe Peak ★',   area:`${peakRental} m²`,                          bg:'#eff6ff', ac:'#2563eb', desc:`Two largest overlapping (${biggestTwo}). Recommended if schedule compresses.`,                        bc:'#2563eb' },
+      { opt:'D — Absolute Max',  area:`${Math.ceil(absMax*1.25*1.20/50)*50} m²`,  bg:'#fef2f2', ac:'#dc2626', desc:`All-time peak: ${biggestTwo} simultaneously on-site. Extreme contingency.`,                           bc:'#dc2626' },
     ].forEach(d => {
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;gap:10px;background:${d.bg};border:1.5px solid ${d.bc}44;border-radius:6px;padding:8px 12px;`;
+      row.style.cssText = `display:flex;align-items:center;gap:10px;background:${d.bg};border:1.5px solid ${d.bc}44;border-radius:6px;padding:10px 14px;`;
       row.innerHTML = `
-        <div style="font-weight:700;font-size:11px;color:${d.ac};min-width:130px;">${d.opt}</div>
+        <div style="font-weight:700;font-size:11px;color:${d.ac};min-width:140px;">${d.opt}</div>
         <div style="font-size:10px;color:#475569;flex:1;">${d.desc}</div>
-        <div style="font-size:16px;font-weight:800;color:${d.ac};white-space:nowrap;">${d.area}</div>`;
+        <div style="font-size:18px;font-weight:800;color:${d.ac};white-space:nowrap;">${d.area}</div>`;
       decGrid.appendChild(row);
     });
-    rentalBody.appendChild(decGrid);
+    bodyWrap.appendChild(decGrid);
 
     // ── Formula note ───────────────────────────────────────
     const formula = document.createElement('div');
-    formula.style.cssText = 'margin-top:14px;background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:10px 14px;font-size:10px;color:#1e3a5f;';
+    formula.style.cssText = 'background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:12px 16px;font-size:10px;color:#1e3a5f;';
     formula.innerHTML = `<strong>Formula:</strong> Rental Area = Material Floor Area × 1.25 <span style="color:#64748b;">(corridors)</span> × 1.20 <span style="color:#64748b;">(safety buffer)</span>`;
-    rentalBody.appendChild(formula);
-
-    rentalSec.appendChild(rentalBody);
-    RPT.mount.appendChild(rentalSec);
+    bodyWrap.appendChild(formula);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1983,7 +2016,8 @@
     const bdMnt  = document.getElementById('bd-mount');
     const rptMnt = document.getElementById('rpt-mount');
     const tlMnt  = document.getElementById('tl-mount');
-    [cvs, konva, three, pixi, bdMnt, rptMnt, tlMnt].forEach(el => el && (el.style.display = 'none'));
+    const sumMnt = document.getElementById('sum-mount');
+    [cvs, konva, three, pixi, bdMnt, rptMnt, tlMnt, sumMnt].forEach(el => el && (el.style.display = 'none'));
 
     // Legend: show only for 2D
     manageLegend(tab);
@@ -2018,6 +2052,9 @@
     } else if (tab === 'rpt' && rptMnt) {
       rptMnt.style.display = 'block';
       renderRPT();
+    } else if (tab === 'sum' && sumMnt) {
+      sumMnt.style.display = 'block';
+      renderSUM();
     } else if (cvs) {
       cvs.style.display = 'block';
     }
@@ -2034,9 +2071,10 @@
       if (window.THREE) { try { initThree(); } catch(e) { console.warn('[Three]',e); } }
       if (window.PIXI)  { try { initPixi();  } catch(e) { console.warn('[PixiJS]',e); } }
       if (window.THREE) { try { initTL();    } catch(e) { console.warn('[TL]',e); } }
-      // BD and RPT always init (Chart.js check is inside render)
+      // BD, RPT, SUM always init (Chart.js check is inside render)
       try { initBD();  } catch(e) { console.warn('[BD]',e); }
       try { initRPT(); } catch(e) { console.warn('[RPT]',e); }
+      try { initSUM(); } catch(e) { console.warn('[SUM]',e); }
 
       // Intercept switchTab — update currentTab FIRST, then call original, then refresh renderer
       const _origSwitchTab = window.switchTab;
@@ -2057,6 +2095,7 @@
         else if (currentTab === 'tl')    { renderTL(); }
         else if (currentTab === 'bd')    { renderBD(); }
         else if (currentTab === 'rpt')   { renderRPT(); }
+        else if (currentTab === 'sum')   { renderSUM(); }
         else {
           if (cvs_) cvs_.style.display = 'block';
           if (typeof _origDraw === 'function') _origDraw();

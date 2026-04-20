@@ -1937,11 +1937,11 @@ function switchTab(tab){
   viewBD=(tab==='bd');
   viewRpt=(tab==='rpt');
   viewSN=false;
-  ['btn2d','btn3d','btnFP','btnTL','btnBD','btnRpt'].forEach(id=>{
-    document.getElementById(id).classList.remove('on');
+  ['btn2d','btn3d','btnFP','btnTL','btnBD','btnRpt','btnSUM'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.classList.remove('on');
   });
-  const btnMap={'2d':'btn2d','three':'btn3d','fp':'btnFP','tl':'btnTL','bd':'btnBD','rpt':'btnRpt'};
-  document.getElementById(btnMap[tab]).classList.add('on');
+  const btnMap={'2d':'btn2d','three':'btn3d','fp':'btnFP','tl':'btnTL','bd':'btnBD','rpt':'btnRpt','sum':'btnSUM'};
+  const btnEl=document.getElementById(btnMap[tab]); if(btnEl) btnEl.classList.add('on');
   // Reset scroll states when switching tabs
   bdScrollY=0;fpScrollY=0;rptScrollY=0;tlScrollY=0;snScrollY=0;
   updatePanelsForTab(tab);
